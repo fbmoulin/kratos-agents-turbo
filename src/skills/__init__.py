@@ -29,8 +29,6 @@ from __future__ import annotations
 
 import io
 import re
-from typing import Tuple
-
 import pdfplumber
 
 
@@ -82,7 +80,7 @@ def classify_document(text: str) -> str:
     return "Cível"
 
 
-def generate_decision(classification: str, message: str) -> str:
+def generate_decision(classification: str, message: str, task_type: str = "despacho") -> str:
     """Generate a simple decision or despacho based on classification.
 
     The generated text is intentionally minimalist. It echoes the
@@ -96,7 +94,9 @@ def generate_decision(classification: str, message: str) -> str:
     :returns: generated decision text
     """
     preamble = (
-        f"Processo classificado como {classification}. A seguir, segue uma minuta gerada automaticamente. "
+        f"Processo classificado como {classification}. "
+        f"Tipo de saída solicitado: {task_type}. "
+        "A seguir, segue uma minuta gerada automaticamente. "
         "Por favor, revise e ajuste conforme necessário:\n\n"
     )
     return preamble + message

@@ -1,7 +1,5 @@
-"""API package exposing the FastAPI application.
+"""API package exports."""
 
-The ``app`` object in ``main.py`` is the entry point to run the
-HTTP server. Use ``uvicorn src.api.main:app`` to serve the API.
-"""
+from src.api.main import app
 
 __all__ = ["app"]

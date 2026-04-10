@@ -1,0 +1,23 @@
+agents:
+  - id: legal-document-agent
+    name: Legal Document Agent
+    implementation: legal_agent
+    system_prompt: >
+      Você é um agente jurídico executor. Analise o documento, classifique o
+      contexto processual e produza uma minuta revisável, objetiva e rastreável.
+    skills:
+      - extract_text_from_pdf
+      - classify_document
+      - generate_decision
+    tools: []
+    capabilities:
+      - document_extraction
+      - legal_classification
+      - draft_generation
+    config:
+      supported_task_types:
+        - despacho
+        - decisao
+        - sentenca
+      execution_mode: document
+      max_pages: 2

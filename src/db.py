@@ -1,126 +1,162 @@
-"""Database integration for task management.
+"""Persistence helpers backed by Supabase/PostgreSQL."""
 
-The functions in this module provide a simple abstraction over
-Supabase's REST interface to store and retrieve tasks. If you
-configure your Supabase instance URL and API key via the environment
-variables ``SUPABASE_URL`` and ``SUPABASE_KEY`` the functions
-defined here will automatically connect to your database.
+from __future__ import annotations
 
-If those environment variables are not set, the functions will raise
-RuntimeError. See ``README.md`` for more details on how to set up
-your Supabase project.
+from datetime import datetime, timezone
+from typing import Any
 
-To minimise dependencies this module uses the official ``supabase``
-client. If that package is not installed you can install it with
-``pip install supabase``.
-"""
+from supabase import Client, create_client
 
-import os
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from src.core import PersistenceError, get_settings
 
-from supabase import create_client, Client
+_client: Client | None = None
 
-_client: Optional[Client] = None
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _get_client() -> Client:
-    """Lazily create a Supabase client using environment variables.
-
-    :raises RuntimeError: if required env vars are missing.
-    :return: supabase client
-    """
     global _client
     if _client is None:
-        url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_KEY")
-        if not url or not key:
-            raise RuntimeError(
-                "SUPABASE_URL and SUPABASE_KEY environment variables must be set"
+        settings = get_settings()
+        if not settings.supabase_url or not settings.supabase_key:
+            raise PersistenceError(
+                "SUPABASE_URL and SUPABASE_KEY must be configured before using persistence"
             )
-        _client = create_client(url, key)
+        _client = create_client(settings.supabase_url, settings.supabase_key)
     return _client
 
 
-def insert_task(
+def create_task(
+    *,
     task_id: str,
     file_name: str,
-    tipo: str,
+    task_type: str,
     status: str,
+    message: str,
     priority: int = 0,
-) -> None:
-    """Insert a new task record into the ``tasks`` table.
-
-    :param task_id: unique identifier for the task
-    :param file_name: original name of the uploaded file
-    :param tipo: type of decision (despacho, decisao, sentenca)
-    :param status: initial status of the task
-    :param priority: optional priority value
-    :raises: any exceptions raised by the supabase client
-    """
-    client = _get_client()
-    now = datetime.utcnow().isoformat()
+    requested_agent_id: str | None = None,
+    agent_id: str | None = None,
+    session_id: str | None = None,
+    execution_mode: str = "document",
+    input_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     payload = {
         "id": task_id,
+        "session_id": session_id,
+        "requested_agent_id": requested_agent_id,
+        "agent_id": agent_id,
         "file_name": file_name,
-        "tipo": tipo,
+        "task_type": task_type,
         "status": status,
+        "message": message,
         "priority": priority,
-        "created_at": now,
+        "execution_mode": execution_mode,
+        "input_metadata": input_metadata or {},
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
     }
-    client.table("tasks").insert(payload).execute()
+    result = _get_client().table("tasks").insert(payload).execute()
+    return result.data[0] if result.data else payload
 
 
-def update_task_status(task_id: str, status: str, result: Optional[str] = None, error: Optional[str] = None) -> None:
-    """Update the status and optionally result/error of a task.
-
-    :param task_id: id of task to update
-    :param status: new status string
-    :param result: optional result text
-    :param error: optional error text
-    """
-    client = _get_client()
-    update_data: Dict[str, Any] = {"status": status}
-    if result is not None:
-        update_data["result"] = result
-        update_data["finished_at"] = datetime.utcnow().isoformat()
-    if error is not None:
-        update_data["error"] = error
-        update_data["finished_at"] = datetime.utcnow().isoformat()
-    client.table("tasks").update(update_data).eq("id", task_id).execute()
+def update_task(task_id: str, **fields: Any) -> dict[str, Any]:
+    update_data = {**fields, "updated_at": utc_now()}
+    result = _get_client().table("tasks").update(update_data).eq("id", task_id).execute()
+    data = result.data or []
+    if not data:
+        raise PersistenceError(f"Task '{task_id}' could not be updated")
+    return data[0]
 
 
-def get_task(task_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch a single task by its id.
-
-    :param task_id: unique identifier
-    :return: task dict or None if not found
-    """
-    client = _get_client()
-    res = client.table("tasks").select("*").eq("id", task_id).execute()
-    data = res.data
+def get_task(task_id: str) -> dict[str, Any] | None:
+    result = _get_client().table("tasks").select("*").eq("id", task_id).limit(1).execute()
+    data = result.data or []
     return data[0] if data else None
 
 
-def list_tasks(status: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Return a list of all tasks or filter by status.
-
-    :param status: optional status to filter by
-    :return: list of task dicts
-    """
-    client = _get_client()
-    query = client.table("tasks").select("*")
+def list_tasks(status: str | None = None) -> list[dict[str, Any]]:
+    query = _get_client().table("tasks").select("*").order("created_at", desc=True)
     if status:
         query = query.eq("status", status)
-    return query.execute().data
+    result = query.execute()
+    return list(result.data or [])
 
 
-def insert_task_log(task_id: str, step: str) -> None:
-    """Insert a record into the ``task_logs`` table for auditing.
+def create_session(
+    *,
+    session_id: str,
+    task_id: str,
+    agent_id: str,
+    status: str,
+    execution_mode: str = "document",
+    metadata: dict[str, Any] | None = None,
+    progress: int = 0,
+    current_step: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "id": session_id,
+        "task_id": task_id,
+        "agent_id": agent_id,
+        "status": status,
+        "execution_mode": execution_mode,
+        "metadata": metadata or {},
+        "progress": progress,
+        "current_step": current_step,
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
+    }
+    result = _get_client().table("sessions").insert(payload).execute()
+    return result.data[0] if result.data else payload
 
-    :param task_id: id of the task
-    :param step: textual description of current step or event
-    """
-    client = _get_client()
-    payload = {"task_id": task_id, "step": step}
-    client.table("task_logs").insert(payload).execute()
+
+def update_session(session_id: str, **fields: Any) -> dict[str, Any]:
+    update_data = {**fields, "updated_at": utc_now()}
+    result = _get_client().table("sessions").update(update_data).eq("id", session_id).execute()
+    data = result.data or []
+    if not data:
+        raise PersistenceError(f"Session '{session_id}' could not be updated")
+    return data[0]
+
+
+def get_session(session_id: str) -> dict[str, Any] | None:
+    result = _get_client().table("sessions").select("*").eq("id", session_id).limit(1).execute()
+    data = result.data or []
+    return data[0] if data else None
+
+
+def insert_task_log(
+    *,
+    task_id: str,
+    session_id: str | None,
+    event_type: str,
+    status: str | None = None,
+    step: str | None = None,
+    message: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    record = {
+        "task_id": task_id,
+        "session_id": session_id,
+        "event_type": event_type,
+        "status": status,
+        "step": step,
+        "message": message,
+        "payload": payload or {},
+        "created_at": utc_now(),
+    }
+    result = _get_client().table("task_logs").insert(record).execute()
+    return result.data[0] if result.data else record
+
+
+def list_task_logs(task_id: str) -> list[dict[str, Any]]:
+    result = (
+        _get_client()
+        .table("task_logs")
+        .select("*")
+        .eq("task_id", task_id)
+        .order("created_at")
+        .execute()
+    )
+    return list(result.data or [])
