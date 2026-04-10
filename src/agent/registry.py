@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 from src.agent.legal_agent import LegalAgent
-from src.core import NotFoundError, get_settings
+from src.core import NotFoundError, ValidationError, get_settings
 
 
 @dataclass(frozen=True)
@@ -31,13 +31,63 @@ class AgentRegistry:
         settings = get_settings()
         with settings.catalog_path.open("r", encoding="utf-8") as file:
             raw_catalog = yaml.safe_load(file) or {}
-        self._definitions = {
-            raw_item["id"]: AgentDefinition(**raw_item)
-            for raw_item in raw_catalog.get("agents", [])
-        }
         self._implementations = {
             "legal_agent": LegalAgent,
         }
+        self._definitions = self._load_definitions(raw_catalog)
+
+    def _load_definitions(self, raw_catalog: dict[str, Any]) -> dict[str, AgentDefinition]:
+        raw_agents = raw_catalog.get("agents")
+        if not isinstance(raw_agents, list) or not raw_agents:
+            raise ValidationError(
+                "Agent catalog is invalid: 'agents' must be a non-empty list"
+            )
+
+        definitions: dict[str, AgentDefinition] = {}
+        for index, raw_item in enumerate(raw_agents, start=1):
+            if not isinstance(raw_item, dict):
+                raise ValidationError(
+                    f"Agent catalog entry #{index} is invalid: expected a mapping"
+                )
+            agent_id = raw_item.get("id")
+            if not agent_id or not isinstance(agent_id, str):
+                raise ValidationError(
+                    f"Agent catalog entry #{index} is invalid: 'id' must be a non-empty string"
+                )
+            if agent_id in definitions:
+                raise ValidationError(
+                    f"Agent catalog is invalid: duplicate agent id '{agent_id}'"
+                )
+
+            implementation = raw_item.get("implementation")
+            if not implementation or not isinstance(implementation, str):
+                raise ValidationError(
+                    f"Agent '{agent_id}' is invalid: 'implementation' must be a non-empty string"
+                )
+            if implementation not in self._implementations:
+                raise ValidationError(
+                    f"Agent '{agent_id}' references unknown implementation '{implementation}'"
+                )
+
+            config = raw_item.get("config", {})
+            if not isinstance(config, dict):
+                raise ValidationError(
+                    f"Agent '{agent_id}' is invalid: 'config' must be a mapping"
+                )
+            normalized_config = dict(config)
+            if "execution_mode" not in normalized_config:
+                normalized_config["execution_mode"] = "document"
+            supported_task_types = normalized_config.get("supported_task_types")
+            if supported_task_types is not None and not isinstance(
+                supported_task_types, (list, tuple)
+            ):
+                raise ValidationError(
+                    f"Agent '{agent_id}' is invalid: 'supported_task_types' must be a list or tuple"
+                )
+
+            normalized_item = {**raw_item, "config": normalized_config}
+            definitions[agent_id] = AgentDefinition(**normalized_item)
+        return definitions
 
     def get(self, agent_id: str) -> AgentDefinition:
         try:

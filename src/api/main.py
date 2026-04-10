@@ -7,19 +7,16 @@ import uuid
 from typing import Annotated
 
 from celery.result import AsyncResult
-from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, Query, UploadFile
 from fastapi.responses import JSONResponse
 
-from src import db
 from src.core import (
     ApplicationError,
     InvalidStateTransition,
     NotFoundError,
     PersistenceError,
-    TaskStatus,
     ValidationError,
     configure_logging,
-    ensure_task_transition,
     get_logger,
     get_settings,
 )
@@ -94,22 +91,20 @@ async def submit_task(
     )
     task_id = str(uuid.uuid4())
 
-    db.create_task(
+    services.task_service.create_task(
         task_id=task_id,
         file_name=validated.file_name,
         task_type=validated.task_type,
-        status=TaskStatus.QUEUED.value,
         message=validated.message,
         priority=validated.priority,
         requested_agent_id=validated.requested_agent_id,
-        session_id=None,
         input_metadata={"content_type": validated.content_type},
     )
     services.event_store.append(
         task_id=task_id,
         session_id=None,
         event_type=EventType.TASK_CREATED,
-        status=TaskStatus.QUEUED.value,
+        status="queued",
         message="Task registered and queued",
         payload={
             "file_name": validated.file_name,
@@ -138,46 +133,81 @@ async def submit_task(
     logger.info("task submitted", extra={"task_id": task_id, "session_id": "-"})
     return {
         "task_id": task_id,
-        "status": TaskStatus.QUEUED.value,
+        "status": "queued",
         "requested_agent_id": validated.requested_agent_id,
     }
 
 
 @app.get("/tasks/{task_id}")
 async def get_task_status(task_id: str) -> dict[str, object]:
-    record = db.get_task(task_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return record
+    return services.task_service.get_task(task_id)
+
+
+@app.get("/tasks/{task_id}/events")
+async def get_task_events(task_id: str) -> dict[str, object]:
+    task = services.task_service.get_task(task_id)
+    events = services.task_service.list_events(task_id)
+    logger.info(
+        "task events requested",
+        extra={"task_id": task_id, "session_id": task.get("session_id") or "-"},
+    )
+    return {
+        "task_id": task_id,
+        "count": len(events),
+        "events": events,
+    }
 
 
 @app.get("/tasks")
 async def list_all_tasks(
     status: str | None = Query(default=None),
 ) -> list[dict[str, object]]:
-    return db.list_tasks(status=status)
+    return services.task_service.list_tasks(status=status)
 
 
 @app.post("/tasks/{task_id}/cancel")
 async def cancel_task(task_id: str) -> dict[str, str]:
-    record = db.get_task(task_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    if record["status"] == TaskStatus.CANCELLED.value:
-        return {"status": TaskStatus.CANCELLED.value}
+    record = services.task_service.get_task(task_id)
+    if record["status"] == "cancelled":
+        return {"status": "cancelled"}
 
-    ensure_task_transition(record["status"], TaskStatus.CANCELLED.value)
-    db.update_task(task_id, status=TaskStatus.CANCELLED.value, cancelled_at=db.utc_now())
+    services.task_service.mark_cancelled(task_id)
     if record.get("session_id"):
-        services.session_service.mark_cancelled(
-            record["session_id"],
-            metadata={"task_id": task_id},
-        )
+        try:
+            services.session_service.mark_cancelled(
+                record["session_id"],
+                metadata={"task_id": task_id},
+            )
+        except Exception as exc:
+            logger.exception(
+                "task/session cancel sync failed",
+                extra={"task_id": task_id, "session_id": record["session_id"]},
+            )
+            try:
+                services.session_service.mark_failed(
+                    record["session_id"],
+                    error_message=f"state_sync_error: {exc}",
+                    metadata={"state_sync_error": True, "task_id": task_id},
+                )
+            except Exception:
+                logger.exception(
+                    "failed to recover session during cancel",
+                    extra={"task_id": task_id, "session_id": record["session_id"]},
+                )
+            services.event_store.append(
+                task_id=task_id,
+                session_id=record["session_id"],
+                event_type=EventType.TASK_FAILED,
+                status="failed",
+                message="Task/session cancel sync failed",
+                payload={"error": f"state_sync_error: {exc}", "state_sync_error": True},
+            )
+            raise
     services.event_store.append(
         task_id=task_id,
         session_id=record.get("session_id"),
         event_type=EventType.TASK_CANCELLED,
-        status=TaskStatus.CANCELLED.value,
+        status="cancelled",
         message="Task cancelled by API request",
         payload={"celery_task_id": task_id},
     )
@@ -186,4 +216,4 @@ async def cancel_task(task_id: str) -> dict[str, str]:
         "task cancelled",
         extra={"task_id": task_id, "session_id": record.get("session_id", "-")},
     )
-    return {"status": TaskStatus.CANCELLED.value}
+    return {"status": "cancelled"}

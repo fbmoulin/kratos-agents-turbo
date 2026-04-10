@@ -1,307 +1,197 @@
 # Kratos Agents Turbo
 
-![Status](https://img.shields.io/badge/status-enterprise_foundation-0f172a?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-phase_2_consolidated-0f172a?style=for-the-badge)
 ![Architecture](https://img.shields.io/badge/architecture-event--first-1d4ed8?style=for-the-badge)
 ![Domain](https://img.shields.io/badge/domain-legal_agents-0f766e?style=for-the-badge)
-![Stack](https://img.shields.io/badge/stack-FastAPI%20%7C%20Celery%20%7C%20Redis%20%7C%20Supabase-7c3aed?style=for-the-badge)
-![Stage](https://img.shields.io/badge/stage-platform_core-f59e0b?style=for-the-badge)
+![Runtime](https://img.shields.io/badge/runtime-FastAPI%20%7C%20Celery%20%7C%20Redis-7c3aed?style=for-the-badge)
+![Persistence](https://img.shields.io/badge/persistence-Supabase%20%7C%20Postgres-f59e0b?style=for-the-badge)
 
-## 1. Document Status
+## 1. Current Position
 
-This repository is the platform-core foundation for a legal agent execution backend.
+`Kratos Agents Turbo` is the platform-core backend for a legal agent execution system.
 
-Current position:
+The repository is no longer a queue-backed bootstrap. It now includes:
 
-- architecture direction is defined
-- core runtime path is implemented
-- persistence model is initialized
-- service boundaries are explicit
-- auditability path is established
+- declarative agent registry
+- centralized settings and state machines
+- service layer for task/session coordination
+- append-only event log
+- HTTP API, worker runtime, and MCP-like skill server
+- SQL schema for tasks, sessions, and task logs
+- minimal automated validation suite
 
-This document is written in an engineering RFC style and should be read as the current architecture contract for the repository.
+This document is the primary operator/developer overview for the current implementation.
 
-## 2. Problem Statement
+## 2. Product Direction
 
-The original system shape was a functional bootstrap:
+The project is intended to be the execution core of a future legal agent platform, with emphasis on:
 
-- API
-- worker
-- queue
+- asynchronous legal document processing
+- execution traceability and auditability
+- explicit task and session lifecycle
+- declarative growth of agents and capabilities
+- safe backend evolution toward more critical workloads
 
-That shape is not sufficient for a legal execution platform where traceability, lifecycle management, and safe evolution are first-order requirements.
+## 3. Architectural Model
 
-The platform must support:
-
-- asynchronous legal task execution
-- explicit task/session lifecycle
-- append-only execution history
-- reusable and declarative agents
-- low-friction local bootstrap
-- future growth toward stronger validation, richer orchestration, and regulated operational controls
-
-## 3. Goals
-
-- Provide a clear backend foundation for a legal agent execution platform.
-- Enforce explicit separation between agent definition, runtime, session lifecycle, event persistence, and transport.
-- Adopt an event-first execution model compatible with future event-sourcing evolution.
-- Make task execution reconstructable from persisted records.
-- Keep the current implementation small enough to operate locally without unnecessary infrastructure.
-
-## 4. Non-Goals
-
-This iteration does not implement:
-
-- frontend
-- websocket streaming
-- full event sourcing
-- authentication and authorization
-- multi-tenant isolation
-- external court integrations
-- advanced multi-agent orchestration
-- production-grade observability stack
-- RAG, jurimetria, or vector infrastructure
-
-## 5. Architectural Decisions
-
-### 5.1 Event-First Execution
-
-Agents do not mutate database state directly as a system of record abstraction.
-
-The execution path is:
-
-1. validate input
-2. register task intent
-3. enqueue runtime work
-4. resolve agent and session
-5. emit structured execution events
-6. persist terminal outcome
-
-This creates a migration path toward stronger event-sourced behavior without requiring full event sourcing in the current phase.
-
-### 5.2 Layered Backend
-
-The codebase is intentionally split into six layers:
+The backend is organized into six layers:
 
 | Layer | Responsibility |
 | --- | --- |
-| `Agent Layer` | agent identity, prompt, skills, tools, capabilities, declarative config |
-| `Runtime Layer` | Celery worker, queue integration, async execution |
-| `Session Layer` | session creation, lifecycle, progress, step state |
-| `Event Layer` | append-only operational event persistence |
-| `Service Layer` | orchestration, routing, validation, coordination |
-| `Persistence Layer` | `tasks`, `sessions`, `task_logs` |
+| `Agent Layer` | declarative agent identity, prompt, skills, tools, capabilities |
+| `Runtime Layer` | Celery queueing and worker execution |
+| `Session Layer` | session creation, progress, transitions, lifecycle |
+| `Event Layer` | append-only operational events |
+| `Service Layer` | orchestration, task lifecycle, validation, routing |
+| `Persistence Layer` | `tasks`, `sessions`, `task_logs` in Postgres |
 
-### 5.3 Declarative Agent Catalog
+Core design principles:
 
-Agents are registered through catalog files and a registry, not embedded as transport-level conditionals.
+- `event-first execution`
+- `task/session pairing`
+- `explicit transitions`
+- `create-only public task submission`
+- `declarative agent growth`
 
-Current catalog location:
+## 4. Repository Layout
 
-- [`src/agent/catalog/agents.yaml`](./src/agent/catalog/agents.yaml)
+| Path | Purpose |
+| --- | --- |
+| `src/api/` | FastAPI transport layer |
+| `src/agent/` | agent implementations, registry, YAML catalog |
+| `src/core/` | settings, logging, exceptions, state machines |
+| `src/events/` | event storage abstraction |
+| `src/services/` | task, session, validator, router, orchestrator services |
+| `src/session/` | session manager |
+| `src/worker/` | Celery runtime |
+| `src/mcp/` | MCP-like skill server |
+| `src/skills/` | reusable legal processing skills |
+| `infra/sql/` | SQL bootstrap artifacts |
+| `tests/` | API/service/registry/state-machine tests |
 
-### 5.4 Explicit State Machines
+## 5. Execution Flow
 
-`task` and `session` status are controlled through explicit transition rules.
+### 5.1 Public request path
 
-Supported statuses:
+`POST /tasks`
 
-- `queued`
-- `running`
-- `completed`
-- `failed`
-- `cancelled`
+1. receives a PDF plus execution metadata
+2. validates payload through `validator_service`
+3. rejects `session_id`; the endpoint is create-only
+4. creates a new task in `queued`
+5. appends `TASK_CREATED`
+6. serializes content to Celery
+7. dispatches the worker job
 
-## 6. System Model
+### 5.2 Worker path
 
-### 6.1 Primary Components
+1. worker receives `task_id` and serialized content
+2. `orchestrator_service` resolves the target agent
+3. creates a new session
+4. marks task and session as `running`
+5. appends `TASK_STARTED`
+6. executes agent steps and emits `TOOL_CALLED` / `STEP_EXECUTED`
+7. finalizes task and session as `completed` or `failed`
 
-| Component | Path | Role |
-| --- | --- | --- |
-| API | `src/api/` | accepts requests, validates input shape, schedules execution |
-| Agent Registry | `src/agent/` | resolves declarative agent definitions |
-| Core | `src/core/` | settings, exceptions, status, logging |
-| Services | `src/services/` | orchestration and coordination |
-| Session Manager | `src/session/` | session persistence and transitions |
-| Event Store | `src/events/` | append-only event writes |
-| Worker | `src/worker/` | background execution |
-| MCP-like Server | `src/mcp/` | local HTTP exposure of skills |
-| Skills | `src/skills/` | reusable legal processing primitives |
+### 5.3 Operational observability path
 
-### 6.2 Persistence Model
+`GET /tasks/{task_id}/events`
 
-The operational persistence model is implemented on Supabase/PostgreSQL.
+1. validates that the task exists
+2. loads the ordered event stream from `task_logs`
+3. returns `task_id`, `count`, and ordered `events`
 
-#### `tasks`
+## 6. Public API
+
+| Endpoint | Responsibility |
+| --- | --- |
+| `GET /health` | minimal liveness metadata |
+| `POST /tasks` | submit a legal execution task |
+| `GET /tasks` | list tasks |
+| `GET /tasks/{task_id}` | read task state/result |
+| `GET /tasks/{task_id}/events` | read ordered execution events |
+| `POST /tasks/{task_id}/cancel` | cancel task and revoke Celery execution |
+
+Important public contract:
+
+- `POST /tasks` is create-only
+- public resume/rebind is not exposed
+- PDF is the only supported document input in the current phase
+
+## 7. Data Model
+
+Persistence is implemented on Supabase/PostgreSQL.
+
+### `tasks`
 
 Stores:
 
 - request metadata
-- resolved agent identity
+- requested and resolved agent identity
 - task status
-- final result
-- error details
-- execution timestamps
+- result and error
+- lifecycle timestamps
 
-#### `sessions`
+### `sessions`
 
 Stores:
 
-- execution lifecycle
-- progress
+- lifecycle status
 - current step
+- progress
 - execution metadata
 
-#### `task_logs`
+### `task_logs`
 
 Stores:
 
-- append-only events
-- step progression
-- operational messages
-- event payloads for reconstruction
+- append-only event history
+- event type, step, status, message
+- structured payload for audit and replay
 
-Schema file:
+Schema:
 
 - [`infra/sql/schema.sql`](./infra/sql/schema.sql)
 
-## 7. Execution Flow
+## 8. Agent Catalog
 
-### 7.1 Request Path
+Current catalog:
 
-`POST /tasks`:
-
-1. receives PDF payload and execution metadata
-2. calls `validator_service`
-3. rejects `session_id` because the public API is create-only in the current phase
-4. persists task as `queued`
-5. appends `TASK_CREATED`
-6. serializes payload for Celery
-7. schedules background execution
-
-### 7.2 Worker Path
-
-Worker execution:
-
-1. loads task
-2. checks cancellation
-3. resolves agent through `router_service`
-4. creates or loads session
-5. marks task/session as `running`
-6. appends `TASK_STARTED`
-7. executes agent steps
-8. appends `TOOL_CALLED` and `STEP_EXECUTED`
-9. persists final state as `completed` or `failed`
-
-### 7.3 Agent Path
+- [`src/agent/catalog/agents.yaml`](./src/agent/catalog/agents.yaml)
 
 Current base agent:
 
 - `legal-document-agent`
 
-Current skill chain:
+Current built-in skill chain:
 
 1. `extract_text_from_pdf`
 2. `classify_document`
 3. `generate_decision`
 
-## 8. Event Contract
+The registry now fails early when the catalog is invalid, including:
 
-Minimum event types currently defined:
+- empty catalog
+- duplicate agent ids
+- unknown implementations
+- malformed `supported_task_types`
 
-- `TASK_CREATED`
-- `TASK_STARTED`
-- `STEP_EXECUTED`
-- `TOOL_CALLED`
-- `TASK_COMPLETED`
-- `TASK_FAILED`
-- `TASK_CANCELLED`
+## 9. Local Development
 
-These are intentionally simple but already sufficient for:
-
-- operational traceability
-- progress reconstruction
-- audit trail expansion
-
-## 9. Invariants
-
-The following invariants are intended to hold:
-
-- a task must not move from a terminal state to another state
-- a session must not move from a terminal state to another state
-- the API must not contain heavy orchestration logic
-- the worker must execute through the service layer, not through ad hoc DB mutations
-- execution-relevant state changes must emit structured events
-- settings must be resolved centrally from `src/core/settings.py`
-
-## 10. General Design
-
-```mermaid
-flowchart LR
-    A["API Layer<br/>FastAPI"] --> B["Validator Service"]
-    B --> C["Tasks Table"]
-    C --> D["Celery Queue"]
-    D --> E["Worker Runtime"]
-    E --> F["Router Service"]
-    F --> G["Agent Registry"]
-    E --> H["Session Service"]
-    E --> I["Orchestrator Service"]
-    I --> J["Legal Agent"]
-    J --> K["Skills"]
-    I --> L["Event Store"]
-    H --> M["Sessions Table"]
-    L --> N["Task Logs Table"]
-    I --> O["Tasks Table<br/>result/status"]
-```
-
-## 11. Repository Layout
-
-| Path | Purpose |
-| --- | --- |
-| `src/api/` | transport layer for HTTP requests |
-| `src/agent/` | agent definitions, registry, catalog |
-| `src/core/` | central configuration and domain primitives |
-| `src/events/` | event storage abstraction |
-| `src/services/` | orchestrator, router, validator, session service |
-| `src/session/` | session lifecycle and persistence control |
-| `src/worker/` | Celery runtime |
-| `src/mcp/` | MCP-like skill exposure |
-| `src/skills/` | domain skills |
-| `infra/sql/` | SQL bootstrap artifacts |
-
-## 12. Interfaces
-
-### 12.1 HTTP Endpoints
-
-| Endpoint | Responsibility |
-| --- | --- |
-| `GET /health` | minimal service liveness metadata |
-| `POST /tasks` | submit legal execution task |
-| `GET /tasks` | list tasks |
-| `GET /tasks/{task_id}` | read task state/result |
-| `POST /tasks/{task_id}/cancel` | cancel task |
-
-### 12.2 Runtime Dependencies
-
-- Redis for broker/backend
-- Supabase/PostgreSQL for persistence
-- Docker Compose for local bootstrap
-
-## 13. Local Development
-
-### 13.1 Prerequisites
+### 9.1 Prerequisites
 
 - Docker
 - Docker Compose
 - Supabase project with schema access
 
-### 13.2 Configuration
+### 9.2 Configuration
 
 1. Copy `.env.example` to `.env`
 2. Set `SUPABASE_URL`
 3. Set `SUPABASE_KEY`
 4. Apply [`infra/sql/schema.sql`](./infra/sql/schema.sql)
 
-### 13.3 Boot
+### 9.3 Boot
 
 ```bash
 docker compose up --build
@@ -313,52 +203,66 @@ Exposed services:
 - MCP-like server: `http://localhost:8001`
 - Redis: `localhost:6379`
 
-### 13.4 Validation
-
-Current local validation commands:
+### 9.4 Validation
 
 ```bash
 python -m compileall src tests
 pytest -q
 docker compose config
+python -c "import pathlib, sys; sys.path.insert(0, str(pathlib.Path('.').resolve())); import src.api.main, src.worker.tasks, src.mcp.server; print('imports-ok')"
 ```
 
-The current repository includes a minimal automated test suite for:
+Current automated coverage includes:
 
-- `POST /tasks` create-only validation
+- create-only validation for `POST /tasks`
 - session ownership safety
-- task/session state machine behavior
+- task lifecycle state transitions
+- task event endpoint envelope
+- registry catalog failure cases
 
-## 14. Operational Notes
+## 10. Operational Notes
 
-- Payloads are currently serialized through Celery as base64 content.
-- PDF is the only supported document input type in the current path.
-- Public `POST /tasks` is create-only; session reuse or resume is not exposed yet.
-- Logging is structured at a basic level with `task_id` and `session_id` correlation fields.
-- The current implementation is production-shaped, not production-complete.
+- payloads are currently serialized through Celery as base64 content
+- logs include `task_id` and `session_id` correlation fields
+- `TaskService` is the authoritative lifecycle service for tasks
+- `SessionService` remains authoritative for session lifecycle
+- the implementation is production-shaped, not production-complete
 
-## 15. Known Gaps
+## 11. Roadmap
 
-- no formal migration tool yet
-- no authn/authz
-- no object storage for large files
-- no distributed tracing
-- no public resume/rebind semantics beyond current session metadata
-- no specialized multi-agent routing strategies
+### Completed
 
-## 16. Next Technical Steps
+- platform settings and health endpoint
+- declarative agent registry
+- task/session/event persistence model
+- service-layer orchestration
+- create-only task submission
+- ordered task event inspection endpoint
+- initial automated test suite
 
-- introduce migrations
+### Next
+
+- formal database migrations
+- stronger task/session sync guarantees across persistence failures
 - move large payloads out of the broker path
-- formalize test coverage for API/worker/persistence boundaries
-- enrich validator and memory layers
-- evolve event store toward stronger replayability
-- add operational metrics and tracing
+- richer validator behavior for multiple agents and execution modes
+- stronger event replayability and audit views
+- operational metrics and tracing
 
-## 17. Summary
+### Explicitly Out of Scope for Now
 
-This repository should now be understood as:
+- public resume/rebind
+- frontend/dashboard implementation
+- websocket streaming
+- full authn/authz
+- multi-agent orchestration
+- RAG and vector storage
+- court integrations
 
-> the platform-core backend for a legal agent execution system
+## 12. Summary
 
-It is no longer just a queue-backed demo. It is a structured foundation intended to support safer growth into a more critical legal execution platform.
+This repository should be understood as:
+
+> a consolidated platform-core backend for a legal agent execution system
+
+It is ready for continued hardening and controlled expansion, but it is not yet the final production platform.

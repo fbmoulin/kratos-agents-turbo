@@ -4,18 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from src import db
 from src.agent import AgentRegistry
 from src.core import (
     SessionStatus,
-    TaskStatus,
-    TERMINAL_TASK_STATUSES,
-    ValidationError,
     get_logger,
 )
 from src.events import EventStore, EventType
 from src.services.router_service import RouterService
 from src.services.session_service import SessionService
+from src.services.task_service import TaskService
 
 
 class OrchestratorService:
@@ -25,11 +22,13 @@ class OrchestratorService:
         self,
         *,
         registry: AgentRegistry,
+        task_service: TaskService,
         router_service: RouterService,
         session_service: SessionService,
         event_store: EventStore,
     ) -> None:
         self.registry = registry
+        self.task_service = task_service
         self.router_service = router_service
         self.session_service = session_service
         self.event_store = event_store
@@ -48,10 +47,12 @@ class OrchestratorService:
         requested_session_id: str | None,
         content_type: str,
     ) -> dict[str, Any]:
-        task_record = db.get_task(task_id)
-        if task_record is None:
-            raise ValidationError(f"Task '{task_id}' does not exist")
-        if task_record["status"] in {status.value for status in TERMINAL_TASK_STATUSES}:
+        task_record = self.task_service.get_task(task_id)
+        if task_record["status"] in {
+            "completed",
+            "failed",
+            "cancelled",
+        }:
             return task_record
 
         agent_id = self.router_service.resolve_agent_id(
@@ -70,12 +71,10 @@ class OrchestratorService:
         session_id = session["id"]
         extra = {"task_id": task_id, "session_id": session_id}
 
-        db.update_task(
+        self.task_service.mark_running(
             task_id,
-            status=TaskStatus.RUNNING.value,
             agent_id=agent_id,
             session_id=session_id,
-            started_at=db.utc_now(),
         )
         self.session_service.mark_running(
             session_id,
@@ -86,7 +85,7 @@ class OrchestratorService:
             task_id=task_id,
             session_id=session_id,
             event_type=EventType.TASK_STARTED,
-            status=TaskStatus.RUNNING.value,
+            status="running",
             message="Task execution started",
             payload={"agent_id": agent_id, "priority": priority},
         )
@@ -131,53 +130,122 @@ class OrchestratorService:
                 task_type=task_type,
                 emit_step=emit_step,
             )
-            db.update_task(
+            task_state = self.task_service.mark_completed(
                 task_id,
-                status=TaskStatus.COMPLETED.value,
                 result=agent_result.result_text,
                 output_metadata=agent_result.metadata,
-                finished_at=db.utc_now(),
             )
-            self.session_service.mark_completed(
-                session_id,
-                metadata=agent_result.metadata,
-            )
+            try:
+                self.session_service.mark_completed(
+                    session_id,
+                    metadata=agent_result.metadata,
+                )
+            except Exception as sync_exc:
+                self._handle_state_sync_error(
+                    task_id=task_id,
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    error=sync_exc,
+                    extra=extra,
+                )
+                raise
             self.event_store.append(
                 task_id=task_id,
                 session_id=session_id,
                 event_type=EventType.TASK_COMPLETED,
-                status=TaskStatus.COMPLETED.value,
+                status=task_state["status"],
                 message="Task execution completed",
-                payload=agent_result.metadata,
+                payload={"agent_id": agent_id, **agent_result.metadata},
             )
             self.logger.info("task execution completed", extra=extra)
             return {
                 "task_id": task_id,
                 "session_id": session_id,
                 "agent_id": agent_id,
-                "status": TaskStatus.COMPLETED.value,
+                "status": task_state["status"],
                 "result": agent_result.result_text,
                 "metadata": agent_result.metadata,
             }
         except Exception as exc:
-            db.update_task(
-                task_id,
-                status=TaskStatus.FAILED.value,
-                error=str(exc),
-                finished_at=db.utc_now(),
-            )
-            self.session_service.mark_failed(
-                session_id,
-                error_message=str(exc),
-                metadata={"agent_id": agent_id},
-            )
+            try:
+                self.task_service.mark_failed(
+                    task_id,
+                    error=str(exc),
+                    output_metadata={"agent_id": agent_id},
+                )
+                self.session_service.mark_failed(
+                    session_id,
+                    error_message=str(exc),
+                    metadata={"agent_id": agent_id},
+                )
+            except Exception as sync_exc:
+                self._handle_state_sync_error(
+                    task_id=task_id,
+                    session_id=session_id,
+                    agent_id=agent_id,
+                    error=sync_exc,
+                    extra=extra,
+                )
             self.event_store.append(
                 task_id=task_id,
                 session_id=session_id,
                 event_type=EventType.TASK_FAILED,
-                status=TaskStatus.FAILED.value,
+                status="failed",
                 message="Task execution failed",
                 payload={"error": str(exc), "agent_id": agent_id},
             )
             self.logger.exception("task execution failed", extra=extra)
             raise
+
+    def _handle_state_sync_error(
+        self,
+        *,
+        task_id: str,
+        session_id: str,
+        agent_id: str,
+        error: Exception,
+        extra: dict[str, str],
+    ) -> None:
+        error_message = f"state_sync_error: {error}"
+        self.logger.exception("state sync failed", extra=extra)
+        try:
+            task = self.task_service.get_task(task_id)
+            if task["status"] not in {"completed", "failed", "cancelled"}:
+                self.task_service.mark_failed(
+                    task_id,
+                    error=error_message,
+                    output_metadata={
+                        "agent_id": agent_id,
+                        "state_sync_error": True,
+                    },
+                )
+        except Exception:
+            self.logger.exception("failed to recover task state", extra=extra)
+        try:
+            session = self.session_service.get_session(session_id)
+            if session["status"] not in {"completed", "failed", "cancelled"}:
+                self.session_service.mark_failed(
+                    session_id,
+                    error_message=error_message,
+                    metadata={
+                        "agent_id": agent_id,
+                        "state_sync_error": True,
+                    },
+                )
+        except Exception:
+            self.logger.exception("failed to recover session state", extra=extra)
+        try:
+            self.event_store.append(
+                task_id=task_id,
+                session_id=session_id,
+                event_type=EventType.TASK_FAILED,
+                status="failed",
+                message="Task/session state sync failed",
+                payload={
+                    "agent_id": agent_id,
+                    "error": error_message,
+                    "state_sync_error": True,
+                },
+            )
+        except Exception:
+            self.logger.exception("failed to persist state sync event", extra=extra)

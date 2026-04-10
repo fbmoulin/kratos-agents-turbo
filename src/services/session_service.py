@@ -96,3 +96,6 @@ class SessionService:
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return self.session_manager.mark_cancelled(session_id, metadata=metadata)
+
+    def get_session(self, session_id: str) -> dict[str, Any]:
+        return self.session_manager.load_session(session_id)
