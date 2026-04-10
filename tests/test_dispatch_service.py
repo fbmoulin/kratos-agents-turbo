@@ -31,7 +31,10 @@ def test_dispatch_service_coerces_uuid_task_id_before_publish(monkeypatch):
         return {"task_id": task_id, "status": fields["status"]}
 
     monkeypatch.setattr(service, "publish", fake_publish)
-    monkeypatch.setattr("src.services.dispatch_service.db.update_task_dispatch", fake_update_task_dispatch)
+    monkeypatch.setattr(
+        "src.services.dispatch_service.db.update_task_dispatch",
+        fake_update_task_dispatch,
+    )
 
     task_id = uuid.uuid4()
     result = service._dispatch_record(
