@@ -3,7 +3,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6380}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -135,4 +135,4 @@ services:
       prometheus:
         condition: service_started
     ports:
-      - "3000:3000"
+      - "${GRAFANA_HOST_PORT:-3001}:3000"

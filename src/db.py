@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from psycopg import sql
 from psycopg.rows import dict_row
@@ -49,8 +51,16 @@ def transaction() -> Iterator[Any]:
             yield conn
 
 
+def _json_default(value: Any) -> str:
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    raise TypeError(f"Object of type {value.__class__.__name__} is not JSON serializable")
+
+
 def _json(value: dict[str, Any] | None) -> Json:
-    return Json(value or {})
+    return Json(value or {}, dumps=lambda data: json.dumps(data, default=_json_default))
 
 
 def _fetchone(

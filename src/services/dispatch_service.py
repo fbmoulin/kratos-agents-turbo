@@ -61,8 +61,8 @@ class DispatchService:
         return {"processed": len(records), "dispatched": dispatched, "failed": failed}
 
     def _dispatch_record(self, record: dict[str, Any]) -> dict[str, Any]:
-        task_id = record["task_id"]
-        queue_name = record["queue_name"]
+        task_id = str(record["task_id"])
+        queue_name = str(record["queue_name"])
         payload = record["payload"]
         attempts = int(record.get("attempts") or 0)
         try:

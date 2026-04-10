@@ -57,6 +57,7 @@ Delivered in the current slice:
 
 - `batches` persistence model
 - direct PostgreSQL persistence with connection pooling
+- validated direct runtime persistence against a real Supabase project using the Session Pooler path
 - batch submission endpoint and aggregate batch inspection
 - basic batch idempotency with SQL-backed reuse
 - queue routing by `task_type`
@@ -64,6 +65,7 @@ Delivered in the current slice:
 - local staging to avoid sending full PDFs through Redis
 - initial SQL migrations under `infra/sql/migrations`
 - task dispatch outbox and reconcile path for broker recovery
+- runtime fixes for UUID-safe dispatch and JSON payload serialization
 
 Immediate MVP target:
 
@@ -109,6 +111,7 @@ Priority backlog:
 ### Documentation
 
 - keep `README.md` aligned with public batch API and lifecycle behavior
+- keep `.env.example` aligned with the current Supabase connection model and compose host ports
 - update `AGENTS.md` whenever repo-specific working rules change
 - keep local runbooks aligned with retry/reconcile/metrics behavior
 

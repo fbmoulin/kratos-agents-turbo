@@ -248,6 +248,13 @@ The registry now fails early when the catalog is invalid, including:
 
 `SUPABASE_URL` and `SUPABASE_KEY` can remain available for future platform integrations, but persistence now depends on direct PostgreSQL connectivity.
 
+For most local environments using Supabase-hosted Postgres, prefer the `Session Pooler` connection string in `DATABASE_URL`.
+
+- use the `Connect` button in the Supabase dashboard
+- copy the `Session Pooler` string
+- keep `DATABASE_URL` pointed at `*.pooler.supabase.com`
+- this avoids the IPv4 limitation of the direct database hostname in many local networks and desktop environments
+
 ### 9.3 Boot
 
 ```bash
@@ -258,12 +265,13 @@ Exposed services:
 
 - API: `http://localhost:8000`
 - MCP-like server: `http://localhost:8001`
-- Redis: `localhost:6379`
+- Redis: `localhost:${REDIS_HOST_PORT:-6380}`
 - Flower: `http://localhost:5555`
 - Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3000`
+- Grafana: `http://localhost:${GRAFANA_HOST_PORT:-3001}`
 
 The compose stack mounts `./runtime` into API and worker containers so staged inputs can be shared without sending full PDFs through Redis.
+The host-published Redis and Grafana ports are configurable so the stack can coexist with other local Redis/Grafana services.
 
 ### 9.4 Validation
 
@@ -293,6 +301,7 @@ Current automated coverage includes:
 
 - uploaded documents are staged locally and the worker receives a file reference
 - persistence uses direct PostgreSQL connections with pooling instead of the Supabase REST client
+- Supabase MCP can now be used alongside the direct SQL runtime for inspection, queries, and operational validation
 - batch creation is transactional and supports basic idempotent reuse via `idempotency_key`
 - task dispatch uses a PostgreSQL outbox and can be retried via `POST /dispatch/reconcile`
 - queues are split by task type for the MVP and can run with dedicated workers:

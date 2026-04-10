@@ -38,6 +38,7 @@ Work should preserve these architectural constraints:
 
 - Keep Redis as queue transport and Supabase-hosted PostgreSQL as persistence of record.
 - Prefer direct PostgreSQL access via `DATABASE_URL` or `SUPABASE_DB_URL` over the Supabase REST client for runtime persistence paths.
+- For local and IPv4-bound environments, prefer the Supabase `Session Pooler` connection string in `DATABASE_URL`.
 - Keep broker payloads small; prefer staged file references over raw document bytes in Celery arguments.
 - Keep database-to-broker handoff recoverable through the task dispatch outbox; do not return to direct fire-and-forget enqueue from the API.
 - Keep queue isolation for `despacho`, `decisao`, and fallback work; do not collapse them into one worker path without a clear throughput reason.
@@ -47,6 +48,7 @@ Work should preserve these architectural constraints:
 - Prefer incremental service-layer changes over ad hoc logic in worker or API handlers.
 - Do not introduce schema changes unless they are justified by a concrete runtime need.
 - Keep the API and worker aligned on the shared staging path configured by `LOCAL_STORAGE_PATH`.
+- Keep `REDIS_HOST_PORT` and `GRAFANA_HOST_PORT` configurable in local compose flows so this repo can coexist with other local stacks.
 - Treat Prometheus/Grafana as the main metrics path and Flower only as an auxiliary operator console.
 - Keep OpenTelemetry optional and environment-driven; instrumentation must not block the core batch path when disabled.
 

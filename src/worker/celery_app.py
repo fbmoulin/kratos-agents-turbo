@@ -31,6 +31,7 @@ def create_celery_app() -> Celery:
         task_acks_late=True,
         task_reject_on_worker_lost=True,
         worker_prefetch_multiplier=settings.celery_worker_prefetch_multiplier,
+        broker_connection_retry_on_startup=True,
         broker_transport_options={
             "visibility_timeout": settings.celery_visibility_timeout,
         },
