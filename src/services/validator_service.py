@@ -22,6 +22,12 @@ class ValidatedTaskSubmission:
 
 
 @dataclass(frozen=True)
+class ValidatedUploadMetadata:
+    file_name: str
+    content_type: str
+
+
+@dataclass(frozen=True)
 class ValidatedBatchSubmission:
     message: str
     task_type: str
@@ -49,19 +55,11 @@ class ValidatorService:
         requested_agent_id: str | None,
         requested_session_id: str | None,
     ) -> ValidatedTaskSubmission:
-        if not file_bytes:
-            raise ValidationError("Uploaded file is empty")
-        if len(file_bytes) > self.settings.max_upload_bytes:
-            raise ValidationError(
-                f"Uploaded file exceeds max size of {self.settings.max_upload_bytes} bytes"
-            )
-
-        safe_name = self._sanitize_filename(file_name or "document.pdf")
-        mime_type = (content_type or "application/octet-stream").strip().lower()
-        if not safe_name.lower().endswith(".pdf"):
-            raise ValidationError("Only PDF files are supported in the current pipeline")
-        if mime_type not in {"application/pdf", "application/octet-stream"}:
-            raise ValidationError("Unsupported file content type")
+        upload_metadata = self.validate_upload_metadata(
+            file_name=file_name,
+            content_type=content_type,
+        )
+        self.validate_file_size(len(file_bytes))
 
         clean_message = self._clean_message(message)
         clean_task_type = self._clean_task_type(task_type)
@@ -78,13 +76,13 @@ class ValidatorService:
             )
 
         return ValidatedTaskSubmission(
-            file_name=safe_name,
+            file_name=upload_metadata.file_name,
             message=clean_message,
             task_type=clean_task_type,
             priority=clean_priority,
             requested_agent_id=requested_agent_id.strip() if requested_agent_id else None,
             requested_session_id=requested_session_id,
-            content_type=mime_type,
+            content_type=upload_metadata.content_type,
         )
 
     def validate_batch_submission(
@@ -113,6 +111,38 @@ class ValidatorService:
             idempotency_key=self._clean_idempotency_key(idempotency_key),
             total_files=total_files,
         )
+
+    def validate_upload_metadata(
+        self,
+        *,
+        file_name: str | None,
+        content_type: str | None,
+    ) -> ValidatedUploadMetadata:
+        safe_name = self._sanitize_filename(file_name or "document.pdf")
+        mime_type = (content_type or "application/octet-stream").strip().lower()
+        if not safe_name.lower().endswith(".pdf"):
+            raise ValidationError("Only PDF files are supported in the current pipeline")
+        if mime_type not in {"application/pdf", "application/octet-stream"}:
+            raise ValidationError("Unsupported file content type")
+        return ValidatedUploadMetadata(
+            file_name=safe_name,
+            content_type=mime_type,
+        )
+
+    def validate_file_size(self, file_size: int) -> None:
+        if file_size <= 0:
+            raise ValidationError("Uploaded file is empty")
+        if file_size > self.settings.max_upload_bytes:
+            raise ValidationError(
+                f"Uploaded file exceeds max size of {self.settings.max_upload_bytes} bytes"
+            )
+
+    def validate_batch_total_bytes(self, total_bytes: int) -> None:
+        if total_bytes > self.settings.max_batch_bytes:
+            raise ValidationError(
+                f"Batch submission exceeds max cumulative size of "
+                f"{self.settings.max_batch_bytes} bytes"
+            )
 
     @staticmethod
     def _sanitize_filename(file_name: str) -> str:

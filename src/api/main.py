@@ -114,16 +114,8 @@ async def submit_batch(
     agent_id: Annotated[str | None, Form()] = None,
     idempotency_key: Annotated[str | None, Form()] = None,
 ) -> dict[str, object]:
-    prepared_files = [
-        {
-            "file_bytes": await upload.read(),
-            "file_name": upload.filename,
-            "content_type": upload.content_type,
-        }
-        for upload in files
-    ]
-    return services.submission_service.submit_batch(
-        files=prepared_files,
+    return await services.submission_service.submit_batch(
+        files=files,
         message=message,
         task_type=task_type or tipo,
         priority=priority,
@@ -155,13 +147,22 @@ async def get_task_events(task_id: str) -> dict[str, object]:
 @app.get("/tasks")
 async def list_all_tasks(
     status: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, object]]:
-    return services.task_service.list_tasks(status=status)
+    return services.task_service.list_task_summaries(
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @app.get("/batches")
-async def list_all_batches() -> list[dict[str, object]]:
-    return services.batch_service.list_batches()
+async def list_all_batches(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict[str, object]]:
+    return services.batch_service.list_batches(limit=limit, offset=offset)
 
 
 @app.get("/batches/{batch_id}")

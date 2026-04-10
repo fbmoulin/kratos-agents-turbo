@@ -67,6 +67,7 @@ class Settings:
     allowed_task_types: tuple[str, ...]
     max_upload_bytes: int
     max_batch_files: int
+    max_batch_bytes: int
     default_despacho_priority: int
     default_decisao_priority: int
     default_sentenca_priority: int
@@ -157,6 +158,7 @@ def get_settings() -> Settings:
         ),
         max_upload_bytes=_get_int("MAX_UPLOAD_BYTES", 10 * 1024 * 1024),
         max_batch_files=_get_int("MAX_BATCH_FILES", 100),
+        max_batch_bytes=_get_int("MAX_BATCH_BYTES", 200 * 1024 * 1024),
         default_despacho_priority=_get_int("DEFAULT_DESPACHO_PRIORITY", 9),
         default_decisao_priority=_get_int("DEFAULT_DECISAO_PRIORITY", 6),
         default_sentenca_priority=_get_int("DEFAULT_SENTENCA_PRIORITY", 4),

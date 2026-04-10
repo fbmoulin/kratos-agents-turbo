@@ -7,7 +7,7 @@ from src.api.main import app
 def test_post_batches_accepts_batch_submission(monkeypatch):
     calls: dict[str, object] = {}
 
-    def fake_submit_batch(**kwargs):
+    async def fake_submit_batch(**kwargs):
         calls["submit_batch"] = kwargs
         return {
             "batch_id": "batch-1",
@@ -46,9 +46,8 @@ def test_post_batches_accepts_batch_submission(monkeypatch):
 
 
 def test_post_batches_reuses_existing_idempotent_batch(monkeypatch):
-    monkeypatch.setattr(
-        "src.api.main.services.submission_service.submit_batch",
-        lambda **kwargs: {
+    async def fake_submit_batch(**kwargs):
+        return {
             "batch_id": "batch-existing",
             "status": "running",
             "task_type": "despacho",
@@ -57,7 +56,11 @@ def test_post_batches_reuses_existing_idempotent_batch(monkeypatch):
             "queue": "legal-despacho",
             "task_ids": ["task-1", "task-2"],
             "idempotency_reused": True,
-        },
+        }
+
+    monkeypatch.setattr(
+        "src.api.main.services.submission_service.submit_batch",
+        fake_submit_batch,
     )
 
     client = TestClient(app)
@@ -107,16 +110,23 @@ def test_get_batch_returns_summary(monkeypatch):
 
 
 def test_list_batches_returns_summaries(monkeypatch):
+    calls: dict[str, object] = {}
+
+    def fake_list_batches(**kwargs):
+        calls["list_batches"] = kwargs
+        return [{"id": "batch-1", "status": "queued"}]
+
     monkeypatch.setattr(
         "src.api.main.services.batch_service.list_batches",
-        lambda: [{"id": "batch-1", "status": "queued"}],
+        fake_list_batches,
     )
 
     client = TestClient(app)
-    response = client.get("/batches")
+    response = client.get("/batches?limit=25&offset=10")
 
     assert response.status_code == 200
     assert response.json() == [{"id": "batch-1", "status": "queued"}]
+    assert calls["list_batches"] == {"limit": 25, "offset": 10}
 
 
 def test_reconcile_dispatches_endpoint(monkeypatch):
@@ -133,9 +143,8 @@ def test_reconcile_dispatches_endpoint(monkeypatch):
 
 
 def test_post_batches_reports_recoverable_dispatch_failure(monkeypatch):
-    monkeypatch.setattr(
-        "src.api.main.services.submission_service.submit_batch",
-        lambda **kwargs: {
+    async def fake_submit_batch(**kwargs):
+        return {
             "batch_id": "batch-reconcile",
             "status": "queued",
             "task_type": "despacho",
@@ -145,7 +154,11 @@ def test_post_batches_reports_recoverable_dispatch_failure(monkeypatch):
             "task_ids": ["task-1"],
             "idempotency_reused": False,
             "dispatch_summary": {"dispatched": 0, "failed": 1},
-        },
+        }
+
+    monkeypatch.setattr(
+        "src.api.main.services.submission_service.submit_batch",
+        fake_submit_batch,
     )
 
     client = TestClient(app)

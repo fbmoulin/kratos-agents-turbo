@@ -152,8 +152,16 @@ class BatchService:
     def get_batch_by_idempotency_key(self, idempotency_key: str) -> dict[str, Any] | None:
         return db.get_batch_by_idempotency_key(idempotency_key)
 
-    def list_batches(self) -> list[dict[str, Any]]:
-        return [self._build_batch_summary(summary) for summary in db.list_batch_summaries()]
+    def list_batches(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        return [
+            self._build_batch_summary(summary)
+            for summary in db.list_batch_summaries(limit=limit, offset=offset)
+        ]
 
     def get_batch_with_tasks(self, batch_id: str) -> dict[str, Any]:
         batch = db.get_batch_summary(batch_id)

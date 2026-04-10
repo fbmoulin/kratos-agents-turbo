@@ -132,10 +132,10 @@ class SubmissionService:
             },
         }
 
-    def submit_batch(
+    async def submit_batch(
         self,
         *,
-        files: list[dict[str, Any]],
+        files: list[Any],
         message: str | None,
         task_type: str | None,
         priority: int | None,
@@ -162,45 +162,47 @@ class SubmissionService:
         batch_id = str(uuid.uuid4())
         task_items: list[dict[str, object]] = []
         staged_paths: list[str] = []
-        for index, upload in enumerate(files, start=1):
-            file_bytes = upload["file_bytes"]
-            validated = self.validator_service.validate_submission(
-                file_bytes=file_bytes,
-                file_name=upload.get("file_name"),
-                content_type=upload.get("content_type"),
-                message=batch_config.message,
-                task_type=batch_config.task_type,
-                priority=batch_config.priority,
-                requested_agent_id=batch_config.requested_agent_id,
-                requested_session_id=None,
-            )
-            task_id = str(uuid.uuid4())
-            staged = self.staging_service.stage_upload(
-                task_id=task_id,
-                file_name=validated.file_name,
-                file_bytes=file_bytes,
-                batch_id=batch_id,
-            )
-            staged_paths.append(str(staged["staged_path"]))
-            task_items.append(
-                {
-                    "task_id": task_id,
-                    "file_name": validated.file_name,
-                    "task_type": validated.task_type,
-                    "message": validated.message,
-                    "priority": validated.priority,
-                    "requested_agent_id": validated.requested_agent_id,
-                    "batch_id": batch_id,
-                    "input_metadata": {
-                        "content_type": validated.content_type,
-                        "staged_path": staged["staged_path"],
-                        "staged_size_bytes": staged["size_bytes"],
-                        "batch_item_index": index,
-                        "batch_total_tasks": batch_config.total_files,
-                    },
-                    "dispatch_queue": self.settings.queue_for_task_type(validated.task_type),
-                }
-            )
+        cumulative_bytes = 0
+        try:
+            for index, upload in enumerate(files, start=1):
+                upload_metadata = self.validator_service.validate_upload_metadata(
+                    file_name=getattr(upload, "filename", None),
+                    content_type=getattr(upload, "content_type", None),
+                )
+                task_id = str(uuid.uuid4())
+                staged = await self.staging_service.stage_upload_stream(
+                    task_id=task_id,
+                    file_name=upload_metadata.file_name,
+                    upload_file=upload,
+                    max_bytes=self.settings.max_upload_bytes,
+                    batch_id=batch_id,
+                )
+                self.validator_service.validate_file_size(int(staged["size_bytes"]))
+                staged_paths.append(str(staged["staged_path"]))
+                cumulative_bytes += int(staged["size_bytes"])
+                self.validator_service.validate_batch_total_bytes(cumulative_bytes)
+                task_items.append(
+                    {
+                        "task_id": task_id,
+                        "file_name": upload_metadata.file_name,
+                        "task_type": batch_config.task_type,
+                        "message": batch_config.message,
+                        "priority": batch_config.priority,
+                        "requested_agent_id": batch_config.requested_agent_id,
+                        "batch_id": batch_id,
+                        "input_metadata": {
+                            "content_type": upload_metadata.content_type,
+                            "staged_path": staged["staged_path"],
+                            "staged_size_bytes": staged["size_bytes"],
+                            "batch_item_index": index,
+                            "batch_total_tasks": batch_config.total_files,
+                        },
+                        "dispatch_queue": self.settings.queue_for_task_type(batch_config.task_type),
+                    }
+                )
+        except Exception:
+            self.staging_service.delete_staged_inputs(staged_paths)
+            raise
 
         try:
             batch_submission = self.batch_service.create_batch_submission(

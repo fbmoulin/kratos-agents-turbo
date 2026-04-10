@@ -55,9 +55,34 @@ class TaskService:
         status: str | None = None,
         *,
         batch_id: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
         conn: Any | None = None,
     ) -> list[dict[str, Any]]:
-        return db.list_tasks(status=status, batch_id=batch_id, conn=conn)
+        return db.list_tasks(
+            status=status,
+            batch_id=batch_id,
+            limit=limit,
+            offset=offset,
+            conn=conn,
+        )
+
+    def list_task_summaries(
+        self,
+        status: str | None = None,
+        *,
+        batch_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        conn: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        return db.list_task_summaries(
+            status=status,
+            batch_id=batch_id,
+            limit=limit,
+            offset=offset,
+            conn=conn,
+        )
 
     def list_events(self, task_id: str) -> list[dict[str, Any]]:
         self.get_task(task_id)

@@ -10,6 +10,8 @@ from src.core import ValidationError, get_settings
 class StagingService:
     """Persist uploaded files to a shared local path for worker pickup."""
 
+    chunk_size_bytes = 1024 * 1024
+
     def __init__(self) -> None:
         self.settings = get_settings()
         self.base_path = self.settings.local_storage_path
@@ -31,6 +33,46 @@ class StagingService:
             "staged_path": str(target_path),
             "size_bytes": len(file_bytes),
         }
+
+    async def stage_upload_stream(
+        self,
+        *,
+        task_id: str,
+        file_name: str,
+        upload_file: object,
+        max_bytes: int,
+        batch_id: str | None = None,
+    ) -> dict[str, object]:
+        batch_segment = batch_id or "single"
+        target_dir = self.base_path / batch_segment
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = target_dir / f"{task_id}-{file_name}"
+        size_bytes = 0
+        try:
+            with target_path.open("wb") as handle:
+                while True:
+                    chunk = await upload_file.read(self.chunk_size_bytes)
+                    if not chunk:
+                        break
+                    size_bytes += len(chunk)
+                    if size_bytes > max_bytes:
+                        raise ValidationError(
+                            f"Uploaded file exceeds max size of {max_bytes} bytes"
+                        )
+                    handle.write(chunk)
+            if size_bytes <= 0:
+                raise ValidationError("Uploaded file is empty")
+            return {
+                "staged_path": str(target_path),
+                "size_bytes": size_bytes,
+            }
+        except Exception:
+            try:
+                target_path.unlink()
+            except FileNotFoundError:
+                pass
+            self._prune_empty_parents(target_dir)
+            raise
 
     def load_staged_input(self, staged_path: str) -> bytes:
         path = Path(staged_path)

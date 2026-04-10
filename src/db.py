@@ -182,6 +182,8 @@ def list_tasks(
     status: str | None = None,
     *,
     batch_id: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
     conn: Any | None = None,
 ) -> list[dict[str, Any]]:
     conditions: list[str] = []
@@ -196,6 +198,50 @@ def list_tasks(
     if conditions:
         query += " where " + " and ".join(conditions)
     query += " order by created_at desc"
+    if limit is not None:
+        query += " limit %s offset %s"
+        params.extend([limit, offset])
+    return _fetchall(query, tuple(params), conn=conn)
+
+
+def list_task_summaries(
+    status: str | None = None,
+    *,
+    batch_id: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    conditions: list[str] = []
+    params: list[Any] = []
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+    if batch_id:
+        conditions.append("batch_id = %s")
+        params.append(batch_id)
+    query = """
+        select
+            id,
+            batch_id,
+            session_id,
+            requested_agent_id,
+            agent_id,
+            file_name,
+            task_type,
+            status,
+            priority,
+            created_at,
+            updated_at,
+            started_at,
+            finished_at,
+            cancelled_at
+        from tasks
+    """
+    if conditions:
+        query += " where " + " and ".join(conditions)
+    query += " order by created_at desc limit %s offset %s"
+    params.extend([limit, offset])
     return _fetchall(query, tuple(params), conn=conn)
 
 
@@ -268,9 +314,13 @@ def list_batches(*, conn: Any | None = None) -> list[dict[str, Any]]:
     return _fetchall("select * from batches order by created_at desc", conn=conn)
 
 
-def list_batch_summaries(*, conn: Any | None = None) -> list[dict[str, Any]]:
-    return _fetchall(
-        """
+def list_batch_summaries(
+    *,
+    limit: int | None = None,
+    offset: int = 0,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    query = """
         with batch_counts as (
             select
                 b.id,
@@ -328,9 +378,12 @@ def list_batch_summaries(*, conn: Any | None = None) -> list[dict[str, Any]]:
             cancelled_count::bigint as cancelled_count
         from batch_counts
         order by created_at desc
-        """,
-        conn=conn,
-    )
+    """
+    params: tuple[Any, ...] = ()
+    if limit is not None:
+        query += "\n limit %s offset %s"
+        params = (limit, offset)
+    return _fetchall(query, params, conn=conn)
 
 
 def get_batch_summary(batch_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:

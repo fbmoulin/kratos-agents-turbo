@@ -144,3 +144,27 @@ def test_get_task_events_returns_404_for_missing_task(monkeypatch):
 
     assert response.status_code == 404
     assert "Task 'missing' not found" == response.json()["detail"]
+
+
+def test_list_tasks_returns_summaries_with_pagination(monkeypatch):
+    calls: dict[str, object] = {}
+
+    def fake_list_task_summaries(**kwargs):
+        calls["list_task_summaries"] = kwargs
+        return [{"id": "task-1", "status": "queued", "file_name": "sample.pdf"}]
+
+    monkeypatch.setattr(
+        "src.api.main.services.task_service.list_task_summaries",
+        fake_list_task_summaries,
+    )
+
+    client = TestClient(app)
+    response = client.get("/tasks?status=queued&limit=25&offset=5")
+
+    assert response.status_code == 200
+    assert response.json() == [{"id": "task-1", "status": "queued", "file_name": "sample.pdf"}]
+    assert calls["list_task_summaries"] == {
+        "status": "queued",
+        "limit": 25,
+        "offset": 5,
+    }

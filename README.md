@@ -100,12 +100,13 @@ Core design principles:
 
 1. receives multiple PDFs with one `task_type` and one instruction message
 2. validates cardinality against `MAX_BATCH_FILES`
-3. optionally reuses an existing batch when `idempotency_key` matches
-4. creates one `batch` record inside a SQL transaction
-4. creates one `task` per file with `batch_id` and `batch_item_index`
-5. appends one `TASK_CREATED` per task
-6. stages each file to shared local storage
-7. dispatches each task to the queue selected for its `task_type`
+3. enforces cumulative upload budget through `MAX_BATCH_BYTES`
+4. optionally reuses an existing batch when `idempotency_key` matches
+5. streams each file to staged local storage instead of retaining all PDFs in memory
+6. creates one `batch` record inside a SQL transaction
+7. creates one `task` per file with `batch_id` and `batch_item_index`
+8. appends one `TASK_CREATED` per task
+9. dispatches each task to the queue selected for its `task_type`
 
 ### 5.3 Worker path
 
@@ -335,6 +336,7 @@ Current automated coverage includes:
 ## 10. Operational Notes
 
 - uploaded documents are staged locally and the worker receives a file reference
+- batch ingest streams uploads to staging and enforces `MAX_BATCH_BYTES`
 - persistence uses direct PostgreSQL connections with pooling instead of the Supabase REST client
 - Supabase MCP can now be used alongside the direct SQL runtime for inspection, queries, and operational validation
 - batch creation is transactional and supports basic idempotent reuse via `idempotency_key`

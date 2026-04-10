@@ -119,7 +119,7 @@ def test_list_batches_uses_sql_batch_summaries(monkeypatch):
     service = BatchService(task_service=SimpleNamespace(), event_store=SimpleNamespace())
     monkeypatch.setattr(
         "src.services.batch_service.db.list_batch_summaries",
-        lambda: [
+        lambda **kwargs: [
             {
                 "id": "batch-1",
                 "status": "running",
