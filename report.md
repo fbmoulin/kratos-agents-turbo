@@ -72,6 +72,14 @@ Immediate MVP target:
 - sustain `50` `despacho` items per batch
 - sustain `20` `decisao` items per batch
 - keep RAG and embeddings out of scope for this slice
+- use `scripts/validate_batch_capacity.py` as the baseline harness for repeatable capacity validation
+
+Latest validated local baseline:
+
+- `despacho=50` -> completed in `36.549s`, throughput `1.368 docs/s`, task p95 `3.086s`
+- `decisao=20` -> completed in `43.108s`, throughput `0.464 docs/s`, task p95 `6.904s`
+
+This benchmark was executed against the compose stack with the current dedicated workers and Supabase-backed persistence.
 
 ### Phase 4 — Next Hardening Targets
 
@@ -93,6 +101,7 @@ Priority backlog:
 - add integration validation for real Supabase Postgres-backed task/session/event writes
 - replace local staging with production-grade object storage when deployment hardening starts
 - benchmark per-queue worker concurrency for despacho vs decisao
+- collect and compare repeated results from `scripts/validate_batch_capacity.py`
 - validate reconcile and retry behavior under broker outage scenarios
 
 ### Observability
@@ -132,8 +141,8 @@ Priority backlog:
 The expected validation baseline for ongoing changes is:
 
 ```bash
-python -m ruff check src tests .github
-python -m compileall src tests
+python -m ruff check src tests scripts .github
+python -m compileall src tests scripts
 pytest -q
 docker compose config
 python -c "import pathlib, sys; sys.path.insert(0, str(pathlib.Path('.').resolve())); import src.api.main, src.worker.tasks, src.mcp.server; print('imports-ok')"

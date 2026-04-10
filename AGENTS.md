@@ -57,8 +57,8 @@ Work should preserve these architectural constraints:
 Before closing meaningful changes, run:
 
 ```bash
-python -m ruff check src tests .github
-python -m compileall src tests
+python -m ruff check src tests scripts .github
+python -m compileall src tests scripts
 pytest -q
 docker compose config
 python -c "import pathlib, sys; sys.path.insert(0, str(pathlib.Path('.').resolve())); import src.api.main, src.worker.tasks, src.mcp.server; print('imports-ok')"

@@ -276,13 +276,48 @@ The host-published Redis and Grafana ports are configurable so the stack can coe
 ### 9.4 Validation
 
 ```bash
-python -m ruff check src tests .github
-python -m compileall src tests
+python -m ruff check src tests scripts .github
+python -m compileall src tests scripts
 pytest -q
 docker compose config
 python -c "import pathlib, sys; sys.path.insert(0, str(pathlib.Path('.').resolve())); import src.api.main, src.worker.tasks, src.mcp.server; print('imports-ok')"
 docker build . -t kratos-agents-turbo-local
 ```
+
+### 9.5 MVP Capacity Validation
+
+To validate the current batch MVP target against the running stack:
+
+```bash
+python scripts/validate_batch_capacity.py
+```
+
+Default scenarios:
+
+- `despacho=50`
+- `decisao=20`
+
+Useful variants:
+
+```bash
+python scripts/validate_batch_capacity.py --scenario despacho=10 --scenario decisao=5
+python scripts/validate_batch_capacity.py --output runtime/capacity-report.json
+```
+
+The script:
+
+- submits one batch per scenario
+- polls batch completion through the public API
+- loads per-task details
+- computes elapsed batch time, throughput, average task duration, and p95 task duration
+- exits non-zero if any scenario does not complete cleanly
+
+Latest validated local baseline on the compose stack:
+
+- `despacho=50` completed in `36.549s`
+- `decisao=20` completed in `43.108s`
+
+These numbers are environment-specific and should be treated as a reproducible local benchmark, not a production SLO.
 
 Current automated coverage includes:
 

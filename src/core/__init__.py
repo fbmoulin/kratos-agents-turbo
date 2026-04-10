@@ -1,5 +1,12 @@
 """Core application primitives."""
 
+from src.core.capacity_validation import (
+    CapacityScenario,
+    build_status_counts,
+    build_task_duration_stats,
+    default_scenarios,
+    parse_scenario,
+)
 from src.core.exceptions import (
     ApplicationError,
     InvalidStateTransition,
@@ -22,6 +29,7 @@ from src.core.status import (
 
 __all__ = [
     "ApplicationError",
+    "CapacityScenario",
     "InvalidStateTransition",
     "NotFoundError",
     "PersistenceError",
@@ -32,11 +40,15 @@ __all__ = [
     "TaskStatus",
     "TransientTaskError",
     "ValidationError",
+    "build_status_counts",
+    "build_task_duration_stats",
     "compute_retry_delay",
     "configure_logging",
+    "default_scenarios",
     "ensure_session_transition",
     "ensure_task_transition",
     "get_logger",
     "get_settings",
     "is_retryable_exception",
+    "parse_scenario",
 ]
