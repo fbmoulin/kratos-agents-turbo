@@ -24,7 +24,6 @@ from src.core import (
 from src.events import EventType
 from src.services import create_platform_services
 from src.worker.celery_app import celery_app
-from src.worker.tasks import process_document_task
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -157,50 +156,56 @@ def _register_and_dispatch_task(
         batch_total_tasks=batch_total_tasks,
     )
 
-    with db.transaction() as conn:
-        services.task_service.create_task(
-            task_id=str(prepared["task_id"]),
-            file_name=str(prepared["file_name"]),
-            task_type=str(prepared["task_type"]),
-            message=str(prepared["message"]),
-            priority=int(prepared["priority"]),
-            requested_agent_id=prepared["requested_agent_id"],
-            batch_id=batch_id,
-            input_metadata=dict(prepared["input_metadata"]),
-            conn=conn,
-        )
-        services.event_store.append(
-            task_id=str(prepared["task_id"]),
-            session_id=None,
-            event_type=EventType.TASK_CREATED,
-            status="queued",
-            message="Task registered and queued",
-            payload={
-                "batch_id": batch_id,
-                "batch_item_index": batch_item_index,
-                "file_name": prepared["file_name"],
-                "task_type": prepared["task_type"],
-                "priority": prepared["priority"],
-                "requested_agent_id": prepared["requested_agent_id"],
-            },
-            conn=conn,
-        )
-    process_document_task.apply_async(
-        kwargs={
-            "task_id": prepared["task_id"],
-            "staged_path": prepared["staged_path"],
-            "file_name": prepared["file_name"],
-            "message": prepared["message"],
-            "task_type": prepared["task_type"],
-            "priority": prepared["priority"],
-            "requested_agent_id": prepared["requested_agent_id"],
-            "requested_session_id": prepared["requested_session_id"],
-            "content_type": prepared["content_type"],
-            "batch_id": batch_id,
-        },
-        task_id=str(prepared["task_id"]),
-        queue=str(prepared["queue"]),
-    )
+    try:
+        with db.transaction() as conn:
+            services.task_service.create_task(
+                task_id=str(prepared["task_id"]),
+                file_name=str(prepared["file_name"]),
+                task_type=str(prepared["task_type"]),
+                message=str(prepared["message"]),
+                priority=int(prepared["priority"]),
+                requested_agent_id=prepared["requested_agent_id"],
+                batch_id=batch_id,
+                input_metadata=dict(prepared["input_metadata"]),
+                conn=conn,
+            )
+            services.event_store.append(
+                task_id=str(prepared["task_id"]),
+                session_id=None,
+                event_type=EventType.TASK_CREATED,
+                status="queued",
+                message="Task registered and queued",
+                payload={
+                    "batch_id": batch_id,
+                    "batch_item_index": batch_item_index,
+                    "file_name": prepared["file_name"],
+                    "task_type": prepared["task_type"],
+                    "priority": prepared["priority"],
+                    "requested_agent_id": prepared["requested_agent_id"],
+                },
+                conn=conn,
+            )
+            db.create_task_dispatch(
+                task_id=str(prepared["task_id"]),
+                queue_name=str(prepared["queue"]),
+                payload={
+                    "task_id": prepared["task_id"],
+                    "staged_path": prepared["staged_path"],
+                    "file_name": prepared["file_name"],
+                    "message": prepared["message"],
+                    "task_type": prepared["task_type"],
+                    "priority": prepared["priority"],
+                    "requested_agent_id": prepared["requested_agent_id"],
+                    "requested_session_id": prepared["requested_session_id"],
+                    "content_type": prepared["content_type"],
+                    "batch_id": batch_id,
+                },
+                conn=conn,
+            )
+    except Exception:
+        services.staging_service.delete_staged_input(str(prepared["staged_path"]))
+        raise
+    services.dispatch_service.dispatch_task(str(prepared["task_id"]))
     logger.info(
         "task submitted",
         extra={
@@ -330,6 +335,7 @@ async def submit_batch(
             batch_config.idempotency_key
         )
         if existing_batch is not None:
+            services.dispatch_service.reconcile_pending()
             existing_summary = services.batch_service.get_batch_with_tasks(existing_batch["id"])
             return {
                 "batch_id": existing_summary["id"],
@@ -344,6 +350,7 @@ async def submit_batch(
 
     batch_id = str(uuid.uuid4())
     task_items: list[dict[str, object]] = []
+    staged_paths: list[str] = []
     for index, upload in enumerate(files, start=1):
         file_bytes = await upload.read()
         validated = services.validator_service.validate_submission(
@@ -363,6 +370,7 @@ async def submit_batch(
             file_bytes=file_bytes,
             batch_id=batch_id,
         )
+        staged_paths.append(str(staged["staged_path"]))
         task_items.append(
             {
                 "task_id": task_id,
@@ -379,20 +387,26 @@ async def submit_batch(
                     "batch_item_index": index,
                     "batch_total_tasks": batch_config.total_files,
                 },
+                "dispatch_queue": settings.queue_for_task_type(validated.task_type),
             }
         )
 
-    batch_submission = services.batch_service.create_batch_submission(
-        batch_id=batch_id,
-        task_type=batch_config.task_type,
-        message=batch_config.message,
-        requested_agent_id=batch_config.requested_agent_id,
-        priority=batch_config.priority,
-        idempotency_key=batch_config.idempotency_key,
-        task_items=task_items,
-    )
+    try:
+        batch_submission = services.batch_service.create_batch_submission(
+            batch_id=batch_id,
+            task_type=batch_config.task_type,
+            message=batch_config.message,
+            requested_agent_id=batch_config.requested_agent_id,
+            priority=batch_config.priority,
+            idempotency_key=batch_config.idempotency_key,
+            task_items=task_items,
+        )
+    except Exception:
+        services.staging_service.delete_staged_inputs(staged_paths)
+        raise
     if not batch_submission["created"]:
         existing_summary = services.batch_service.get_batch_with_tasks(batch_submission["batch"]["id"])
+        services.dispatch_service.reconcile_pending()
         return {
             "batch_id": existing_summary["id"],
             "status": existing_summary["status"],
@@ -405,24 +419,10 @@ async def submit_batch(
         }
 
     submitted_tasks: list[dict[str, object]] = []
+    dispatch_summary = services.dispatch_service.dispatch_tasks(
+        [str(task["id"]) for task in batch_submission["tasks"]]
+    )
     for task in batch_submission["tasks"]:
-        task_input = task.get("input_metadata", {})
-        process_document_task.apply_async(
-            kwargs={
-                "task_id": task["id"],
-                "staged_path": task_input.get("staged_path"),
-                "file_name": task["file_name"],
-                "message": task["message"],
-                "task_type": task["task_type"],
-                "priority": task["priority"],
-                "requested_agent_id": task.get("requested_agent_id"),
-                "requested_session_id": None,
-                "content_type": task_input.get("content_type", "application/pdf"),
-                "batch_id": batch_submission["batch"]["id"],
-            },
-            task_id=task["id"],
-            queue=settings.queue_for_task_type(task["task_type"]),
-        )
         submitted_tasks.append(
             {
                 "task_id": task["id"],
@@ -443,6 +443,7 @@ async def submit_batch(
         "queue": settings.queue_for_task_type(batch_config.task_type),
         "task_ids": [task["task_id"] for task in submitted_tasks],
         "idempotency_reused": False,
+        "dispatch_summary": dispatch_summary,
     }
 
 
@@ -481,6 +482,11 @@ async def list_all_batches() -> list[dict[str, object]]:
 @app.get("/batches/{batch_id}")
 async def get_batch(batch_id: str) -> dict[str, object]:
     return services.batch_service.get_batch_with_tasks(batch_id)
+
+
+@app.post("/dispatch/reconcile")
+async def reconcile_dispatches(limit: int = Query(default=100, ge=1, le=1000)) -> dict[str, int]:
+    return services.dispatch_service.reconcile_pending(limit=limit)
 
 
 @app.post("/tasks/{task_id}/cancel")

@@ -6,16 +6,13 @@ from src.api.main import app
 
 
 def test_post_batches_accepts_batch_submission(monkeypatch):
-    calls: dict[str, object] = {"apply_async": []}
+    calls: dict[str, object] = {}
 
     def fake_stage_upload(**kwargs):
         return {
             "staged_path": f"/tmp/{kwargs['task_id']}-{kwargs['file_name']}",
             "size_bytes": len(kwargs["file_bytes"]),
         }
-
-    def fake_apply_async(**kwargs):
-        calls["apply_async"].append(kwargs)
 
     def fake_get_batch_by_idempotency_key(idempotency_key):
         calls["idempotency_lookup"] = idempotency_key
@@ -51,7 +48,14 @@ def test_post_batches_accepts_batch_submission(monkeypatch):
         fake_create_batch_submission,
     )
     monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
-    monkeypatch.setattr("src.api.main.process_document_task.apply_async", fake_apply_async)
+    def fake_dispatch_tasks(task_ids):
+        calls["dispatch_tasks"] = list(task_ids)
+        return {"dispatched": len(task_ids), "failed": 0}
+
+    monkeypatch.setattr(
+        "src.api.main.services.dispatch_service.dispatch_tasks",
+        fake_dispatch_tasks,
+    )
 
     client = TestClient(app)
     response = client.post(
@@ -75,11 +79,12 @@ def test_post_batches_accepts_batch_submission(monkeypatch):
     assert calls["batch_submission"]["task_items"][0]["batch_id"] == payload["batch_id"]
     assert calls["batch_submission"]["task_items"][0]["input_metadata"]["batch_item_index"] == 1
     assert calls["batch_submission"]["task_items"][1]["input_metadata"]["batch_item_index"] == 2
-    assert calls["apply_async"][0]["queue"] == "legal-despacho"
-    assert calls["apply_async"][0]["kwargs"]["batch_id"] == payload["batch_id"]
+    assert calls["batch_submission"]["task_items"][0]["dispatch_queue"] == "legal-despacho"
+    assert payload["dispatch_summary"]["dispatched"] == 2
 
 
 def test_post_batches_reuses_existing_idempotent_batch(monkeypatch):
+    calls: dict[str, object] = {}
     monkeypatch.setattr(
         "src.api.main.services.batch_service.get_batch_by_idempotency_key",
         lambda idempotency_key: {"id": "batch-existing", "task_type": "despacho", "priority": 9, "total_tasks": 2},
@@ -95,6 +100,14 @@ def test_post_batches_reuses_existing_idempotent_batch(monkeypatch):
             "tasks": [{"id": "task-1"}, {"id": "task-2"}],
         },
     )
+    def fake_reconcile(limit=100):
+        calls["reconcile_limit"] = limit
+        return {"processed": 1, "dispatched": 1, "failed": 0}
+
+    monkeypatch.setattr(
+        "src.api.main.services.dispatch_service.reconcile_pending",
+        fake_reconcile,
+    )
 
     client = TestClient(app)
     response = client.post(
@@ -106,6 +119,47 @@ def test_post_batches_reuses_existing_idempotent_batch(monkeypatch):
     assert response.status_code == 200
     assert response.json()["batch_id"] == "batch-existing"
     assert response.json()["idempotency_reused"] is True
+    assert calls["reconcile_limit"] == 100
+
+
+def test_post_batches_cleans_up_staged_files_when_transaction_fails(monkeypatch):
+    calls: dict[str, object] = {}
+
+    def fake_stage_upload(**kwargs):
+        return {
+            "staged_path": f"/tmp/{kwargs['task_id']}-{kwargs['file_name']}",
+            "size_bytes": len(kwargs["file_bytes"]),
+        }
+
+    def fake_create_batch_submission(**kwargs):
+        raise RuntimeError("db failed")
+
+    def fake_delete(staged_paths):
+        calls["deleted"] = list(staged_paths)
+
+    monkeypatch.setattr(
+        "src.api.main.services.batch_service.get_batch_by_idempotency_key",
+        lambda idempotency_key: None,
+    )
+    monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
+    monkeypatch.setattr(
+        "src.api.main.services.batch_service.create_batch_submission",
+        fake_create_batch_submission,
+    )
+    monkeypatch.setattr("src.api.main.services.staging_service.delete_staged_inputs", fake_delete)
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(
+        "/batches",
+        files=[
+            ("files", ("a.pdf", b"%PDF-1.4 A", "application/pdf")),
+            ("files", ("b.pdf", b"%PDF-1.4 B", "application/pdf")),
+        ],
+        data={"message": "Gerar lotes", "tipo": "despacho"},
+    )
+
+    assert response.status_code == 500
+    assert len(calls["deleted"]) == 2
 
 
 def test_post_batches_rejects_above_max_limit():
@@ -154,3 +208,60 @@ def test_list_batches_returns_summaries(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == [{"id": "batch-1", "status": "queued"}]
+
+
+def test_reconcile_dispatches_endpoint(monkeypatch):
+    monkeypatch.setattr(
+        "src.api.main.services.dispatch_service.reconcile_pending",
+        lambda limit=100: {"processed": limit, "dispatched": 2, "failed": 1},
+    )
+
+    client = TestClient(app)
+    response = client.post("/dispatch/reconcile?limit=25")
+
+    assert response.status_code == 200
+    assert response.json() == {"processed": 25, "dispatched": 2, "failed": 1}
+
+
+def test_post_batches_reports_recoverable_dispatch_failure(monkeypatch):
+    def fake_stage_upload(**kwargs):
+        return {
+            "staged_path": f"/tmp/{kwargs['task_id']}-{kwargs['file_name']}",
+            "size_bytes": len(kwargs["file_bytes"]),
+        }
+
+    def fake_create_batch_submission(**kwargs):
+        return {
+            "created": True,
+            "batch": {"id": kwargs["batch_id"], "task_type": kwargs["task_type"], "priority": kwargs["priority"], "total_tasks": len(kwargs["task_items"])},
+            "tasks": [
+                {
+                    "id": item["task_id"],
+                    "file_name": item["file_name"],
+                    "task_type": item["task_type"],
+                    "message": item["message"],
+                    "priority": item["priority"],
+                    "requested_agent_id": item["requested_agent_id"],
+                    "input_metadata": item["input_metadata"],
+                }
+                for item in kwargs["task_items"]
+            ],
+        }
+
+    def fake_dispatch_tasks(task_ids):
+        return {"dispatched": 0, "failed": len(task_ids)}
+
+    monkeypatch.setattr("src.api.main.services.batch_service.get_batch_by_idempotency_key", lambda _: None)
+    monkeypatch.setattr("src.api.main.services.batch_service.create_batch_submission", fake_create_batch_submission)
+    monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
+    monkeypatch.setattr("src.api.main.services.dispatch_service.dispatch_tasks", fake_dispatch_tasks)
+
+    client = TestClient(app)
+    response = client.post(
+        "/batches",
+        files=[("files", ("a.pdf", b"%PDF-1.4 A", "application/pdf"))],
+        data={"message": "Gerar lote", "tipo": "despacho", "idempotency_key": "batch-reconcile"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["dispatch_summary"] == {"dispatched": 0, "failed": 1}

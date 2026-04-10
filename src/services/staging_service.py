@@ -38,5 +38,26 @@ class StagingService:
             raise ValidationError(f"Staged input '{staged_path}' was not found")
         return path.read_bytes()
 
+    def delete_staged_input(self, staged_path: str) -> None:
+        path = Path(staged_path)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return
+        self._prune_empty_parents(path.parent)
+
+    def delete_staged_inputs(self, staged_paths: list[str]) -> None:
+        for staged_path in staged_paths:
+            self.delete_staged_input(staged_path)
+
+    def _prune_empty_parents(self, path: Path) -> None:
+        current = path
+        while current != self.base_path and current.is_dir():
+            try:
+                current.rmdir()
+            except OSError:
+                return
+            current = current.parent
+
 
 __all__ = ["StagingService"]

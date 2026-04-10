@@ -57,6 +57,7 @@ Delivered in the current slice:
 - specific agent profiles for `despacho` and `decisao`
 - local staging to avoid sending full PDFs through Redis
 - initial SQL migrations under `infra/sql/migrations`
+- task dispatch outbox and reconcile path for broker recovery
 
 Immediate MVP target:
 

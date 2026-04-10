@@ -5,6 +5,8 @@ This directory contains ordered SQL migrations for Supabase-hosted PostgreSQL.
 Current baseline:
 
 1. `001_platform_core.sql`
+2. `002_batch_idempotency.sql`
+3. `003_task_dispatch_outbox.sql`
 
 Recommended application order:
 

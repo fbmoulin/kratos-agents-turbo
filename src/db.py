@@ -372,3 +372,88 @@ def list_task_logs(task_id: str, *, conn: Any | None = None) -> list[dict[str, A
         (task_id,),
         conn=conn,
     )
+
+
+def create_task_dispatch(
+    *,
+    task_id: str,
+    queue_name: str,
+    payload: dict[str, Any],
+    status: str = "pending",
+    conn: Any | None = None,
+) -> dict[str, Any]:
+    query = """
+        insert into task_dispatches (
+            task_id,
+            queue_name,
+            status,
+            payload,
+            attempts,
+            created_at,
+            updated_at
+        )
+        values (%s, %s, %s, %s, 0, %s, %s)
+        returning *
+    """
+    return _fetchone(
+        query,
+        (
+            task_id,
+            queue_name,
+            status,
+            _json(payload),
+            utc_now(),
+            utc_now(),
+        ),
+        conn=conn,
+    ) or {}
+
+
+def get_task_dispatch(task_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
+    return _fetchone(
+        "select * from task_dispatches where task_id = %s limit 1",
+        (task_id,),
+        conn=conn,
+    )
+
+
+def list_task_dispatches(
+    *,
+    statuses: tuple[str, ...] = ("pending", "failed"),
+    limit: int = 100,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    if not statuses:
+        return []
+    placeholders = ", ".join(["%s"] * len(statuses))
+    query = f"""
+        select * from task_dispatches
+        where status in ({placeholders})
+        order by created_at
+        limit %s
+    """
+    return _fetchall(query, (*statuses, limit), conn=conn)
+
+
+def update_task_dispatch(
+    task_id: str,
+    *,
+    conn: Any | None = None,
+    **fields: Any,
+) -> dict[str, Any]:
+    update_data = {**fields, "updated_at": utc_now()}
+    assignments = [
+        sql.SQL("{} = %s").format(sql.Identifier(column))
+        for column in update_data.keys()
+    ]
+    values = [
+        _json(value) if column == "payload" else value
+        for column, value in update_data.items()
+    ]
+    query = sql.SQL("update task_dispatches set {} where task_id = %s returning *").format(
+        sql.SQL(", ").join(assignments)
+    )
+    result = _fetchone(query, (*values, task_id), conn=conn)
+    if result is None:
+        raise PersistenceError(f"Task dispatch '{task_id}' could not be updated")
+    return result

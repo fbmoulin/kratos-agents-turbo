@@ -38,6 +38,7 @@ Work should preserve these architectural constraints:
 - Keep Redis as queue transport and Supabase-hosted PostgreSQL as persistence of record.
 - Prefer direct PostgreSQL access via `DATABASE_URL` or `SUPABASE_DB_URL` over the Supabase REST client for runtime persistence paths.
 - Keep broker payloads small; prefer staged file references over raw document bytes in Celery arguments.
+- Keep database-to-broker handoff recoverable through the task dispatch outbox; do not return to direct fire-and-forget enqueue from the API.
 - Keep schema/code alignment between `src/db.py` and `infra/sql/schema.sql`.
 - Keep ordered SQL migrations in `infra/sql/migrations/` and treat `schema.sql` as the latest snapshot.
 - Prefer incremental service-layer changes over ad hoc logic in worker or API handlers.

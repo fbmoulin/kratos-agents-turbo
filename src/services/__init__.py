@@ -8,6 +8,7 @@ from src.agent import get_agent_registry
 from src.events import EventStore
 from src.session import SessionManager
 from src.services.batch_service import BatchService
+from src.services.dispatch_service import DispatchService
 from src.services.orchestrator_service import OrchestratorService
 from src.services.router_service import RouterService
 from src.services.session_service import SessionService
@@ -24,6 +25,7 @@ class PlatformServices:
     router_service: RouterService
     session_service: SessionService
     staging_service: StagingService
+    dispatch_service: DispatchService
     event_store: EventStore
     orchestrator_service: OrchestratorService
 
@@ -31,6 +33,7 @@ class PlatformServices:
 def create_platform_services() -> PlatformServices:
     registry = get_agent_registry()
     event_store = EventStore()
+    dispatch_service = DispatchService(event_store=event_store)
     session_manager = SessionManager()
     task_service = TaskService()
     batch_service = BatchService(task_service=task_service, event_store=event_store)
@@ -52,6 +55,7 @@ def create_platform_services() -> PlatformServices:
         router_service=router_service,
         session_service=session_service,
         staging_service=staging_service,
+        dispatch_service=dispatch_service,
         event_store=event_store,
         orchestrator_service=orchestrator_service,
     )
@@ -59,6 +63,7 @@ def create_platform_services() -> PlatformServices:
 
 __all__ = [
     "BatchService",
+    "DispatchService",
     "OrchestratorService",
     "PlatformServices",
     "RouterService",

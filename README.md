@@ -145,6 +145,7 @@ Core design principles:
 | `GET /batches` | list batch summaries |
 | `GET /batches/{batch_id}` | read aggregate batch state |
 | `POST /batches/{batch_id}/cancel` | cancel queued/running tasks in the batch |
+| `POST /dispatch/reconcile` | retry pending or failed broker dispatches from the outbox |
 
 Important public contract:
 
@@ -282,6 +283,7 @@ Current automated coverage includes:
 - uploaded documents are staged locally and the worker receives a file reference
 - persistence uses direct PostgreSQL connections with pooling instead of the Supabase REST client
 - batch creation is transactional and supports basic idempotent reuse via `idempotency_key`
+- task dispatch uses a PostgreSQL outbox and can be retried via `POST /dispatch/reconcile`
 - queues are split by task type for the MVP:
   - `despacho` -> `CELERY_DESPACHO_QUEUE`
   - `decisao` -> `CELERY_DECISAO_QUEUE`

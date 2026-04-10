@@ -79,6 +79,18 @@ create table if not exists task_logs (
     created_at timestamptz not null default now()
 );
 
+create table if not exists task_dispatches (
+    task_id uuid primary key references tasks(id) on delete cascade,
+    queue_name text not null,
+    status text not null check (status in ('pending', 'dispatched', 'failed')),
+    payload jsonb not null default '{}'::jsonb,
+    attempts integer not null default 0 check (attempts >= 0),
+    last_error text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    dispatched_at timestamptz
+);
+
 create index if not exists idx_tasks_status_created_at on tasks (status, created_at desc);
 create index if not exists idx_tasks_batch_id on tasks (batch_id);
 create index if not exists idx_tasks_session_id on tasks (session_id);
@@ -92,3 +104,4 @@ create index if not exists idx_sessions_status_created_at on sessions (status, c
 create index if not exists idx_task_logs_task_id_created_at on task_logs (task_id, created_at);
 create index if not exists idx_task_logs_session_id_created_at on task_logs (session_id, created_at);
 create index if not exists idx_task_logs_event_type on task_logs (event_type);
+create index if not exists idx_task_dispatches_status_created_at on task_dispatches (status, created_at);
