@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.core import ValidationError
 from src.session import SessionManager
 
 
@@ -24,6 +25,14 @@ class SessionService:
     ) -> dict[str, Any]:
         if requested_session_id:
             session = self.session_manager.load_session(requested_session_id)
+            if session["task_id"] != task_id:
+                raise ValidationError(
+                    "session_id does not belong to the current task and cannot be rebound"
+                )
+            if session["agent_id"] != agent_id:
+                raise ValidationError(
+                    "session_id belongs to a different agent and cannot be rebound"
+                )
             return session
         return self.session_manager.create_session(
             task_id=task_id,

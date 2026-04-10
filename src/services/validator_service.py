@@ -74,6 +74,9 @@ class ValidatorService:
                 uuid.UUID(requested_session_id)
             except ValueError as exc:
                 raise ValidationError("session_id must be a valid UUID") from exc
+            raise ValidationError(
+                "session_id is not supported on POST /tasks yet; create-only submission is the only public mode"
+            )
 
         return ValidatedTaskSubmission(
             file_name=safe_name,

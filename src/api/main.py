@@ -102,12 +102,12 @@ async def submit_task(
         message=validated.message,
         priority=validated.priority,
         requested_agent_id=validated.requested_agent_id,
-        session_id=validated.requested_session_id,
+        session_id=None,
         input_metadata={"content_type": validated.content_type},
     )
     services.event_store.append(
         task_id=task_id,
-        session_id=validated.requested_session_id,
+        session_id=None,
         event_type=EventType.TASK_CREATED,
         status=TaskStatus.QUEUED.value,
         message="Task registered and queued",

@@ -172,10 +172,11 @@ Schema file:
 
 1. receives PDF payload and execution metadata
 2. calls `validator_service`
-3. persists task as `queued`
-4. appends `TASK_CREATED`
-5. serializes payload for Celery
-6. schedules background execution
+3. rejects `session_id` because the public API is create-only in the current phase
+4. persists task as `queued`
+5. appends `TASK_CREATED`
+6. serializes payload for Celery
+7. schedules background execution
 
 ### 7.2 Worker Path
 
@@ -312,10 +313,27 @@ Exposed services:
 - MCP-like server: `http://localhost:8001`
 - Redis: `localhost:6379`
 
+### 13.4 Validation
+
+Current local validation commands:
+
+```bash
+python -m compileall src tests
+pytest -q
+docker compose config
+```
+
+The current repository includes a minimal automated test suite for:
+
+- `POST /tasks` create-only validation
+- session ownership safety
+- task/session state machine behavior
+
 ## 14. Operational Notes
 
 - Payloads are currently serialized through Celery as base64 content.
 - PDF is the only supported document input type in the current path.
+- Public `POST /tasks` is create-only; session reuse or resume is not exposed yet.
 - Logging is structured at a basic level with `task_id` and `session_id` correlation fields.
 - The current implementation is production-shaped, not production-complete.
 
@@ -325,7 +343,7 @@ Exposed services:
 - no authn/authz
 - no object storage for large files
 - no distributed tracing
-- no durable resume/checkpoint semantics beyond current session metadata
+- no public resume/rebind semantics beyond current session metadata
 - no specialized multi-agent routing strategies
 
 ## 16. Next Technical Steps
