@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+from fastapi.testclient import TestClient
+from src.api.main import app
+
+
+def test_metrics_endpoint_returns_prometheus_payload(monkeypatch):
+    monkeypatch.setattr(
+        "src.api.main.generate_metrics_payload",
+        lambda operations_service: b"# HELP kratos_tasks_total test\nkratos_tasks_total 1\n",
+    )
+
+    client = TestClient(app)
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    assert response.text == "# HELP kratos_tasks_total test\nkratos_tasks_total 1\n"
+    assert response.headers["content-type"].startswith("text/plain; version=0.0.4")
+
+
+def test_operations_summary_returns_operational_snapshot(monkeypatch):
+    monkeypatch.setattr(
+        "src.api.main.services.operations_service.summary",
+        lambda **kwargs: {
+            "open_batches": [{"id": "batch-1", "status": "running"}],
+            "pending_dispatches": [{"task_id": "task-1", "status": "failed"}],
+            "stuck_tasks": [{"id": "task-2", "status": "running"}],
+            "failed_tasks_by_type": [{"task_type": "decisao", "total": 1}],
+            "worker_heartbeats": [{"worker": "despacho@host", "status": "pong"}],
+            "query": kwargs,
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get(
+        "/operations/summary?limit=10&pending_dispatch_after_minutes=7&stuck_task_after_minutes=45"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["open_batches"][0]["id"] == "batch-1"
+    assert payload["pending_dispatches"][0]["task_id"] == "task-1"
+    assert payload["stuck_tasks"][0]["id"] == "task-2"
+    assert payload["failed_tasks_by_type"][0]["task_type"] == "decisao"
+    assert payload["worker_heartbeats"][0]["worker"] == "despacho@host"
+    assert payload["query"] == {
+        "pending_dispatch_after_minutes": 7,
+        "stuck_task_after_minutes": 45,
+        "limit": 10,
+    }

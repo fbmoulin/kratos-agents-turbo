@@ -92,10 +92,12 @@ create table if not exists task_dispatches (
 );
 
 create index if not exists idx_tasks_status_created_at on tasks (status, created_at desc);
+create index if not exists idx_tasks_status_started_at on tasks (status, started_at asc) where started_at is not null;
 create index if not exists idx_tasks_batch_id on tasks (batch_id);
 create index if not exists idx_tasks_session_id on tasks (session_id);
 create index if not exists idx_tasks_agent_id on tasks (agent_id);
 create index if not exists idx_tasks_task_type_status_priority_created_at on tasks (task_type, status, priority desc, created_at desc);
+create index if not exists idx_tasks_task_type_finished_at on tasks (task_type, finished_at desc) where finished_at is not null;
 create index if not exists idx_batches_created_at on batches (created_at desc);
 create index if not exists idx_batches_task_type_created_at on batches (task_type, created_at desc);
 create unique index if not exists idx_batches_idempotency_key on batches (idempotency_key) where idempotency_key is not null;
@@ -105,3 +107,4 @@ create index if not exists idx_task_logs_task_id_created_at on task_logs (task_i
 create index if not exists idx_task_logs_session_id_created_at on task_logs (session_id, created_at);
 create index if not exists idx_task_logs_event_type on task_logs (event_type);
 create index if not exists idx_task_dispatches_status_created_at on task_dispatches (status, created_at);
+create index if not exists idx_task_dispatches_status_updated_at on task_dispatches (status, updated_at asc);

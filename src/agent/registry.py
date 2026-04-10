@@ -39,9 +39,7 @@ class AgentRegistry:
     def _load_definitions(self, raw_catalog: dict[str, Any]) -> dict[str, AgentDefinition]:
         raw_agents = raw_catalog.get("agents")
         if not isinstance(raw_agents, list) or not raw_agents:
-            raise ValidationError(
-                "Agent catalog is invalid: 'agents' must be a non-empty list"
-            )
+            raise ValidationError("Agent catalog is invalid: 'agents' must be a non-empty list")
 
         definitions: dict[str, AgentDefinition] = {}
         for index, raw_item in enumerate(raw_agents, start=1):
@@ -55,9 +53,7 @@ class AgentRegistry:
                     f"Agent catalog entry #{index} is invalid: 'id' must be a non-empty string"
                 )
             if agent_id in definitions:
-                raise ValidationError(
-                    f"Agent catalog is invalid: duplicate agent id '{agent_id}'"
-                )
+                raise ValidationError(f"Agent catalog is invalid: duplicate agent id '{agent_id}'")
 
             implementation = raw_item.get("implementation")
             if not implementation or not isinstance(implementation, str):
@@ -71,9 +67,7 @@ class AgentRegistry:
 
             config = raw_item.get("config", {})
             if not isinstance(config, dict):
-                raise ValidationError(
-                    f"Agent '{agent_id}' is invalid: 'config' must be a mapping"
-                )
+                raise ValidationError(f"Agent '{agent_id}' is invalid: 'config' must be a mapping")
             normalized_config = dict(config)
             if "execution_mode" not in normalized_config:
                 normalized_config["execution_mode"] = "document"

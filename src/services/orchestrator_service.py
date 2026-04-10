@@ -8,6 +8,7 @@ from src.agent import AgentRegistry
 from src.core import (
     SessionStatus,
     get_logger,
+    is_retryable_exception,
 )
 from src.events import EventStore, EventType
 from src.services.router_service import RouterService
@@ -61,35 +62,46 @@ class OrchestratorService:
         )
         agent_definition = self.registry.get(agent_id)
         execution_mode = agent_definition.config.get("execution_mode", "document")
+        session_hint = requested_session_id or (
+            str(task_record["session_id"]) if task_record.get("session_id") else None
+        )
         session = self.session_service.create_or_load_session(
             task_id=task_id,
             agent_id=agent_id,
-            requested_session_id=requested_session_id,
+            requested_session_id=session_hint,
             execution_mode=execution_mode,
             metadata={"content_type": content_type, "file_name": file_name},
         )
         session_id = session["id"]
         extra = {"task_id": task_id, "session_id": session_id}
 
-        self.task_service.mark_running(
-            task_id,
-            agent_id=agent_id,
-            session_id=session_id,
-        )
-        self.session_service.mark_running(
-            session_id,
-            current_step="execution_started",
-            progress=5,
-        )
-        self.event_store.append(
-            task_id=task_id,
-            session_id=session_id,
-            event_type=EventType.TASK_STARTED,
-            status="running",
-            message="Task execution started",
-            payload={"agent_id": agent_id, "priority": priority},
-        )
-        self.logger.info("task execution started", extra=extra)
+        if task_record.get("session_id") != session_id or task_record.get("agent_id") != agent_id:
+            self.task_service.attach_execution_context(
+                task_id,
+                agent_id=agent_id,
+                session_id=session_id,
+            )
+
+        if task_record["status"] == "queued":
+            self.task_service.mark_running(
+                task_id,
+                agent_id=agent_id,
+                session_id=session_id,
+            )
+            self.session_service.mark_running(
+                session_id,
+                current_step="execution_started",
+                progress=5,
+            )
+            self.event_store.append(
+                task_id=task_id,
+                session_id=session_id,
+                event_type=EventType.TASK_STARTED,
+                status="running",
+                message="Task execution started",
+                payload={"agent_id": agent_id, "priority": priority},
+            )
+            self.logger.info("task execution started", extra=extra)
 
         completed_steps = 0
         total_steps = 3
@@ -167,6 +179,9 @@ class OrchestratorService:
                 "metadata": agent_result.metadata,
             }
         except Exception as exc:
+            if is_retryable_exception(exc):
+                self.logger.warning("transient task execution error", extra=extra)
+                raise
             try:
                 self.task_service.mark_failed(
                     task_id,

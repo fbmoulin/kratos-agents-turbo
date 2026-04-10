@@ -5,9 +5,11 @@ from __future__ import annotations
 from celery import Celery
 
 from src.core import configure_logging, get_settings
+from src.core.observability import configure_celery_observability
 
 settings = get_settings()
 configure_logging(settings.log_level)
+configure_celery_observability(settings)
 
 
 def create_celery_app() -> Celery:
@@ -27,7 +29,14 @@ def create_celery_app() -> Celery:
         task_track_started=True,
         worker_send_task_events=True,
         task_acks_late=True,
-        worker_prefetch_multiplier=1,
+        task_reject_on_worker_lost=True,
+        worker_prefetch_multiplier=settings.celery_worker_prefetch_multiplier,
+        broker_transport_options={
+            "visibility_timeout": settings.celery_visibility_timeout,
+        },
+        result_backend_transport_options={
+            "visibility_timeout": settings.celery_visibility_timeout,
+        },
     )
     return app
 

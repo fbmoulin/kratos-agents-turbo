@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from src.core import InvalidStateTransition, ensure_session_transition, ensure_task_transition
 
 

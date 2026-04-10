@@ -4,9 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-from src.core import ValidationError
 from src.agent.registry import AgentRegistry
+from src.core import ValidationError
 
 
 def _write_catalog(path: Path, content: str) -> Path:

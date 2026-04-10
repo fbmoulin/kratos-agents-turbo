@@ -6,15 +6,16 @@ from dataclasses import dataclass
 
 from src.agent import get_agent_registry
 from src.events import EventStore
-from src.session import SessionManager
 from src.services.batch_service import BatchService
 from src.services.dispatch_service import DispatchService
+from src.services.operations_service import OperationsService
 from src.services.orchestrator_service import OrchestratorService
 from src.services.router_service import RouterService
 from src.services.session_service import SessionService
 from src.services.staging_service import StagingService
 from src.services.task_service import TaskService
 from src.services.validator_service import ValidatorService
+from src.session import SessionManager
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class PlatformServices:
     session_service: SessionService
     staging_service: StagingService
     dispatch_service: DispatchService
+    operations_service: OperationsService
     event_store: EventStore
     orchestrator_service: OrchestratorService
 
@@ -37,6 +39,7 @@ def create_platform_services() -> PlatformServices:
     session_manager = SessionManager()
     task_service = TaskService()
     batch_service = BatchService(task_service=task_service, event_store=event_store)
+    operations_service = OperationsService(batch_service=batch_service)
     session_service = SessionService(session_manager=session_manager)
     router_service = RouterService(registry=registry)
     validator_service = ValidatorService()
@@ -56,6 +59,7 @@ def create_platform_services() -> PlatformServices:
         session_service=session_service,
         staging_service=staging_service,
         dispatch_service=dispatch_service,
+        operations_service=operations_service,
         event_store=event_store,
         orchestrator_service=orchestrator_service,
     )
@@ -64,6 +68,7 @@ def create_platform_services() -> PlatformServices:
 __all__ = [
     "BatchService",
     "DispatchService",
+    "OperationsService",
     "OrchestratorService",
     "PlatformServices",
     "RouterService",

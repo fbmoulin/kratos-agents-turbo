@@ -28,7 +28,7 @@ an MCP server for consumption by other agents.
 from __future__ import annotations
 
 import io
-import re
+
 import pdfplumber
 
 

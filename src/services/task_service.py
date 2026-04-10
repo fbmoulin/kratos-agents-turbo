@@ -63,21 +63,40 @@ class TaskService:
         self.get_task(task_id)
         return db.list_task_logs(task_id)
 
-    def mark_running(
+    def attach_execution_context(
         self,
         task_id: str,
         *,
         agent_id: str,
         session_id: str,
     ) -> dict[str, Any]:
-        current = self.get_task(task_id)
-        ensure_task_transition(current["status"], TaskStatus.RUNNING.value)
+        self.get_task(task_id)
         return db.update_task(
             task_id,
-            status=TaskStatus.RUNNING.value,
             agent_id=agent_id,
             session_id=session_id,
-            started_at=db.utc_now(),
+        )
+
+    def mark_running(
+        self,
+        task_id: str,
+        *,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        current = self.get_task(task_id)
+        ensure_task_transition(current["status"], TaskStatus.RUNNING.value)
+        update_fields: dict[str, Any] = {
+            "status": TaskStatus.RUNNING.value,
+            "started_at": db.utc_now(),
+        }
+        if agent_id is not None:
+            update_fields["agent_id"] = agent_id
+        if session_id is not None:
+            update_fields["session_id"] = session_id
+        return db.update_task(
+            task_id,
+            **update_fields,
         )
 
     def mark_completed(

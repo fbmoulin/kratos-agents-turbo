@@ -73,7 +73,8 @@ class ValidatorService:
             except ValueError as exc:
                 raise ValidationError("session_id must be a valid UUID") from exc
             raise ValidationError(
-                "session_id is not supported on POST /tasks yet; create-only submission is the only public mode"
+                "session_id is not supported on POST /tasks yet; "
+                "create-only submission is the only public mode"
             )
 
         return ValidatedTaskSubmission(
@@ -159,6 +160,7 @@ class ValidatorService:
             raise ValidationError("idempotency_key exceeds 128 characters")
         if not re.fullmatch(r"[A-Za-z0-9._:-]+", clean_value):
             raise ValidationError(
-                "idempotency_key may only contain letters, numbers, dot, underscore, colon and hyphen"
+                "idempotency_key may only contain letters, numbers, dot, "
+                "underscore, colon and hyphen"
             )
         return clean_value

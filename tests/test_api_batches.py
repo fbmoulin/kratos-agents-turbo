@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-
 from src.api.main import app
 
 
@@ -48,6 +47,7 @@ def test_post_batches_accepts_batch_submission(monkeypatch):
         fake_create_batch_submission,
     )
     monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
+
     def fake_dispatch_tasks(task_ids):
         calls["dispatch_tasks"] = list(task_ids)
         return {"dispatched": len(task_ids), "failed": 0}
@@ -87,7 +87,12 @@ def test_post_batches_reuses_existing_idempotent_batch(monkeypatch):
     calls: dict[str, object] = {}
     monkeypatch.setattr(
         "src.api.main.services.batch_service.get_batch_by_idempotency_key",
-        lambda idempotency_key: {"id": "batch-existing", "task_type": "despacho", "priority": 9, "total_tasks": 2},
+        lambda idempotency_key: {
+            "id": "batch-existing",
+            "task_type": "despacho",
+            "priority": 9,
+            "total_tasks": 2,
+        },
     )
     monkeypatch.setattr(
         "src.api.main.services.batch_service.get_batch_with_tasks",
@@ -100,6 +105,7 @@ def test_post_batches_reuses_existing_idempotent_batch(monkeypatch):
             "tasks": [{"id": "task-1"}, {"id": "task-2"}],
         },
     )
+
     def fake_reconcile(limit=100):
         calls["reconcile_limit"] = limit
         return {"processed": 1, "dispatched": 1, "failed": 0}
@@ -165,8 +171,7 @@ def test_post_batches_cleans_up_staged_files_when_transaction_fails(monkeypatch)
 def test_post_batches_rejects_above_max_limit():
     client = TestClient(app)
     files = [
-        ("files", (f"doc-{index}.pdf", b"%PDF-1.4 test", "application/pdf"))
-        for index in range(101)
+        ("files", (f"doc-{index}.pdf", b"%PDF-1.4 test", "application/pdf")) for index in range(101)
     ]
 
     response = client.post(
@@ -233,7 +238,12 @@ def test_post_batches_reports_recoverable_dispatch_failure(monkeypatch):
     def fake_create_batch_submission(**kwargs):
         return {
             "created": True,
-            "batch": {"id": kwargs["batch_id"], "task_type": kwargs["task_type"], "priority": kwargs["priority"], "total_tasks": len(kwargs["task_items"])},
+            "batch": {
+                "id": kwargs["batch_id"],
+                "task_type": kwargs["task_type"],
+                "priority": kwargs["priority"],
+                "total_tasks": len(kwargs["task_items"]),
+            },
             "tasks": [
                 {
                     "id": item["task_id"],
@@ -251,10 +261,16 @@ def test_post_batches_reports_recoverable_dispatch_failure(monkeypatch):
     def fake_dispatch_tasks(task_ids):
         return {"dispatched": 0, "failed": len(task_ids)}
 
-    monkeypatch.setattr("src.api.main.services.batch_service.get_batch_by_idempotency_key", lambda _: None)
-    monkeypatch.setattr("src.api.main.services.batch_service.create_batch_submission", fake_create_batch_submission)
+    monkeypatch.setattr(
+        "src.api.main.services.batch_service.get_batch_by_idempotency_key", lambda _: None
+    )
+    monkeypatch.setattr(
+        "src.api.main.services.batch_service.create_batch_submission", fake_create_batch_submission
+    )
     monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
-    monkeypatch.setattr("src.api.main.services.dispatch_service.dispatch_tasks", fake_dispatch_tasks)
+    monkeypatch.setattr(
+        "src.api.main.services.dispatch_service.dispatch_tasks", fake_dispatch_tasks
+    )
 
     client = TestClient(app)
     response = client.post(

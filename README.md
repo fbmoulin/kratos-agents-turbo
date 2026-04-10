@@ -1,6 +1,6 @@
 # Kratos Agents Turbo
 
-![Status](https://img.shields.io/badge/status-phase_3_batch_mvp-0f172a?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-phase_2_closed-0f172a?style=for-the-badge)
 ![Architecture](https://img.shields.io/badge/architecture-event--first-1d4ed8?style=for-the-badge)
 ![Domain](https://img.shields.io/badge/domain-legal_agents-0f766e?style=for-the-badge)
 ![Runtime](https://img.shields.io/badge/runtime-FastAPI%20%7C%20Celery%20%7C%20Redis-7c3aed?style=for-the-badge)
@@ -19,6 +19,7 @@ The repository is no longer a queue-backed bootstrap. It now includes:
 - append-only event log
 - HTTP API, worker runtime, and MCP-like skill server
 - direct PostgreSQL persistence against Supabase-hosted Postgres
+- Prometheus metrics exposure and optional OpenTelemetry tracing
 - SQL schema and versioned migrations
 - minimal automated validation suite
 
@@ -146,6 +147,8 @@ Core design principles:
 | `GET /batches/{batch_id}` | read aggregate batch state |
 | `POST /batches/{batch_id}/cancel` | cancel queued/running tasks in the batch |
 | `POST /dispatch/reconcile` | retry pending or failed broker dispatches from the outbox |
+| `GET /operations/summary` | read operational queues, dispatches, stuck tasks, worker heartbeats |
+| `GET /metrics` | expose Prometheus metrics |
 
 Important public contract:
 
@@ -256,16 +259,21 @@ Exposed services:
 - API: `http://localhost:8000`
 - MCP-like server: `http://localhost:8001`
 - Redis: `localhost:6379`
+- Flower: `http://localhost:5555`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000`
 
 The compose stack mounts `./runtime` into API and worker containers so staged inputs can be shared without sending full PDFs through Redis.
 
 ### 9.4 Validation
 
 ```bash
+python -m ruff check src tests .github
 python -m compileall src tests
 pytest -q
 docker compose config
 python -c "import pathlib, sys; sys.path.insert(0, str(pathlib.Path('.').resolve())); import src.api.main, src.worker.tasks, src.mcp.server; print('imports-ok')"
+docker build . -t kratos-agents-turbo-local
 ```
 
 Current automated coverage includes:
@@ -277,6 +285,9 @@ Current automated coverage includes:
 - task event endpoint envelope
 - router preference for more specific agent profiles
 - registry catalog failure cases
+- metrics endpoint exposure
+- operations summary endpoint
+- retry backoff and retryable error classification
 
 ## 10. Operational Notes
 
@@ -284,11 +295,19 @@ Current automated coverage includes:
 - persistence uses direct PostgreSQL connections with pooling instead of the Supabase REST client
 - batch creation is transactional and supports basic idempotent reuse via `idempotency_key`
 - task dispatch uses a PostgreSQL outbox and can be retried via `POST /dispatch/reconcile`
-- queues are split by task type for the MVP:
+- queues are split by task type for the MVP and can run with dedicated workers:
   - `despacho` -> `CELERY_DESPACHO_QUEUE`
   - `decisao` -> `CELERY_DECISAO_QUEUE`
   - fallback types -> `CELERY_TASK_QUEUE`
+- Celery runtime is now tuned for batch safety:
+  - `worker_prefetch_multiplier=1`
+  - `task_acks_late=true`
+  - Redis `visibility_timeout` configurable through settings
+  - bounded exponential retry per `task_type`
 - logs include `task_id` and `session_id` correlation fields
+- `/metrics` exposes Prometheus-friendly operational metrics derived from Postgres and Celery heartbeat inspection
+- OpenTelemetry instrumentation is optional and controlled through `OTEL_ENABLED` plus `OTEL_EXPORTER_OTLP_ENDPOINT`
+- Prometheus, Grafana, and Flower are provided in the local compose stack as operator tooling
 - batch endpoints provide aggregate status derived from underlying task states
 - `TaskService` is the authoritative lifecycle service for tasks
 - `SessionService` remains authoritative for session lifecycle
@@ -309,16 +328,22 @@ Current automated coverage includes:
 - ordered task event inspection endpoint
 - queue routing by `task_type`
 - local staging to reduce broker pressure
+- dedicated queue workers for despacho and decisao
+- outbox-based broker reconcile
+- operational summary endpoint
+- Prometheus metrics endpoint
+- optional OpenTelemetry bootstrap
+- local Prometheus/Grafana/Flower stack
+- GitHub Actions CI for lint, tests, import smoke, compose config, and Docker build
 - initial automated test suite
 
 ### Next
 
-- stronger batch retry policy beyond the current idempotency baseline
-- stronger task/session sync guarantees across persistence failures
+- throughput validation against the MVP target (`50` despacho / `20` decisao)
 - object storage replacement for local staged inputs in production
-- richer validator behavior for multiple agents and execution modes
-- stronger event replayability and audit views
-- operational metrics and tracing
+- richer operational audit views beyond the current summary/read model
+- robust PDF ingestion/extraction pipeline
+- spreadsheet/metadata analysis for candidate batch clustering
 
 ### Explicitly Out of Scope for Now
 
@@ -326,6 +351,7 @@ Current automated coverage includes:
 - frontend/dashboard implementation
 - websocket streaming
 - full authn/authz
+- LGPD/anonymization before LLM usage
 - multi-agent orchestration
 - RAG and vector storage
 - embeddings and retrieval pipelines

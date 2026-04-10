@@ -21,3 +21,7 @@ class InvalidStateTransition(ApplicationError):
 
 class PersistenceError(ApplicationError):
     """Raised when persistence operations fail."""
+
+
+class TransientTaskError(ApplicationError):
+    """Raised when a task failure is retryable."""

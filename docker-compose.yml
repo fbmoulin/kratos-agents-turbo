@@ -35,9 +35,37 @@ services:
       timeout: 5s
       retries: 10
 
-  worker:
+  worker-despacho:
     build: .
-    command: sh -c "celery -A src.worker.celery_app.celery_app worker --loglevel=info -Q ${CELERY_DESPACHO_QUEUE:-legal-despacho},${CELERY_DECISAO_QUEUE:-legal-decisao},${CELERY_TASK_QUEUE:-legal-tasks}"
+    command: sh -c "celery -A src.worker.celery_app.celery_app worker --loglevel=info -n despacho@%h -Q ${CELERY_DESPACHO_QUEUE:-legal-despacho} --concurrency=${CELERY_DESPACHO_WORKER_CONCURRENCY:-4}"
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    volumes:
+      - ./runtime:/app/runtime
+
+  worker-decisao:
+    build: .
+    command: sh -c "celery -A src.worker.celery_app.celery_app worker --loglevel=info -n decisao@%h -Q ${CELERY_DECISAO_QUEUE:-legal-decisao} --concurrency=${CELERY_DECISAO_WORKER_CONCURRENCY:-2}"
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    volumes:
+      - ./runtime:/app/runtime
+
+  worker-default:
+    build: .
+    command: sh -c "celery -A src.worker.celery_app.celery_app worker --loglevel=info -n default@%h -Q ${CELERY_TASK_QUEUE:-legal-tasks} --concurrency=${CELERY_DEFAULT_WORKER_CONCURRENCY:-1}"
     restart: unless-stopped
     env_file:
       - .env
@@ -60,3 +88,51 @@ services:
         condition: service_healthy
     ports:
       - "8001:8001"
+
+  flower:
+    build: .
+    command: sh -c "celery -A src.worker.celery_app.celery_app flower --port=5555"
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker-despacho:
+        condition: service_started
+      worker-decisao:
+        condition: service_started
+      worker-default:
+        condition: service_started
+    ports:
+      - "5555:5555"
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.2.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    ports:
+      - "3000:3000"

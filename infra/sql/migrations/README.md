@@ -7,6 +7,7 @@ Current baseline:
 1. `001_platform_core.sql`
 2. `002_batch_idempotency.sql`
 3. `003_task_dispatch_outbox.sql`
+4. `004_phase2_operational_hardening.sql`
 
 Recommended application order:
 

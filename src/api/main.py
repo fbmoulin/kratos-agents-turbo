@@ -7,7 +7,7 @@ from typing import Annotated
 
 from celery.result import AsyncResult
 from fastapi import FastAPI, File, Form, Query, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from src import db
 from src.core import (
@@ -21,6 +21,8 @@ from src.core import (
     get_logger,
     get_settings,
 )
+from src.core.metrics import generate_metrics_payload
+from src.core.observability import configure_api_observability
 from src.events import EventType
 from src.services import create_platform_services
 from src.worker.celery_app import celery_app
@@ -34,6 +36,7 @@ app = FastAPI(
     title="Kratos Agents Turbo API",
     version=settings.service_version,
 )
+configure_api_observability(app, settings)
 
 TERMINAL_TASK_STATUSES = {
     TaskStatus.COMPLETED.value,
@@ -72,6 +75,12 @@ async def handle_application_error(_, exc: ApplicationError) -> JSONResponse:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return settings.health_payload()
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    payload = generate_metrics_payload(services.operations_service)
+    return Response(payload, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 def _prepare_task_submission(
@@ -405,7 +414,9 @@ async def submit_batch(
         services.staging_service.delete_staged_inputs(staged_paths)
         raise
     if not batch_submission["created"]:
-        existing_summary = services.batch_service.get_batch_with_tasks(batch_submission["batch"]["id"])
+        existing_summary = services.batch_service.get_batch_with_tasks(
+            batch_submission["batch"]["id"]
+        )
         services.dispatch_service.reconcile_pending()
         return {
             "batch_id": existing_summary["id"],
@@ -487,6 +498,27 @@ async def get_batch(batch_id: str) -> dict[str, object]:
 @app.post("/dispatch/reconcile")
 async def reconcile_dispatches(limit: int = Query(default=100, ge=1, le=1000)) -> dict[str, int]:
     return services.dispatch_service.reconcile_pending(limit=limit)
+
+
+@app.get("/operations/summary")
+async def get_operations_summary(
+    limit: int = Query(default=25, ge=1, le=200),
+    pending_dispatch_after_minutes: int | None = Query(default=None, ge=0, le=1440),
+    stuck_task_after_minutes: int | None = Query(default=None, ge=0, le=10080),
+) -> dict[str, object]:
+    return services.operations_service.summary(
+        pending_dispatch_after_minutes=(
+            pending_dispatch_after_minutes
+            if pending_dispatch_after_minutes is not None
+            else settings.operational_pending_dispatch_after_minutes
+        ),
+        stuck_task_after_minutes=(
+            stuck_task_after_minutes
+            if stuck_task_after_minutes is not None
+            else settings.operational_stuck_task_after_minutes
+        ),
+        limit=limit,
+    )
 
 
 @app.post("/tasks/{task_id}/cancel")

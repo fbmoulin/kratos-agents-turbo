@@ -110,7 +110,9 @@ class BatchService:
                         queue_name=dispatch_queue,
                         payload={
                             "task_id": created_task["id"],
-                            "staged_path": created_task.get("input_metadata", {}).get("staged_path"),
+                            "staged_path": created_task.get("input_metadata", {}).get(
+                                "staged_path"
+                            ),
                             "file_name": created_task["file_name"],
                             "message": created_task["message"],
                             "task_type": created_task["task_type"],

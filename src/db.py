@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Any, Iterator
+from datetime import UTC, datetime
+from typing import Any
 
 from psycopg import sql
 from psycopg.rows import dict_row
@@ -17,7 +18,7 @@ _pool: ConnectionPool | None = None
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _get_pool() -> ConnectionPool:
@@ -120,33 +121,35 @@ def create_task(
         values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         returning *
     """
-    return _fetchone(
-        query,
-        (
-            task_id,
-            batch_id,
-            session_id,
-            requested_agent_id,
-            agent_id,
-            file_name,
-            task_type,
-            status,
-            message,
-            priority,
-            execution_mode,
-            _json(input_metadata),
-            utc_now(),
-            utc_now(),
-        ),
-        conn=conn,
-    ) or {}
+    return (
+        _fetchone(
+            query,
+            (
+                task_id,
+                batch_id,
+                session_id,
+                requested_agent_id,
+                agent_id,
+                file_name,
+                task_type,
+                status,
+                message,
+                priority,
+                execution_mode,
+                _json(input_metadata),
+                utc_now(),
+                utc_now(),
+            ),
+            conn=conn,
+        )
+        or {}
+    )
 
 
 def update_task(task_id: str, *, conn: Any | None = None, **fields: Any) -> dict[str, Any]:
     update_data = {**fields, "updated_at": utc_now()}
     assignments = [
-        sql.SQL("{} = %s").format(sql.Identifier(column))
-        for column in update_data.keys()
+        sql.SQL("{} = %s").format(sql.Identifier(column)) for column in update_data.keys()
     ]
     values = [
         _json(value) if column in {"input_metadata", "output_metadata"} else value
@@ -214,22 +217,25 @@ def create_batch(
         values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         returning *
     """
-    return _fetchone(
-        query,
-        (
-            batch_id,
-            task_type,
-            message,
-            requested_agent_id,
-            priority,
-            total_tasks,
-            idempotency_key,
-            _json(input_metadata),
-            utc_now(),
-            utc_now(),
-        ),
-        conn=conn,
-    ) or {}
+    return (
+        _fetchone(
+            query,
+            (
+                batch_id,
+                task_type,
+                message,
+                requested_agent_id,
+                priority,
+                total_tasks,
+                idempotency_key,
+                _json(input_metadata),
+                utc_now(),
+                utc_now(),
+            ),
+            conn=conn,
+        )
+        or {}
+    )
 
 
 def get_batch(batch_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
@@ -280,33 +286,34 @@ def create_session(
         values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         returning *
     """
-    return _fetchone(
-        query,
-        (
-            session_id,
-            task_id,
-            agent_id,
-            status,
-            execution_mode,
-            _json(metadata),
-            progress,
-            current_step,
-            utc_now(),
-            utc_now(),
-        ),
-        conn=conn,
-    ) or {}
+    return (
+        _fetchone(
+            query,
+            (
+                session_id,
+                task_id,
+                agent_id,
+                status,
+                execution_mode,
+                _json(metadata),
+                progress,
+                current_step,
+                utc_now(),
+                utc_now(),
+            ),
+            conn=conn,
+        )
+        or {}
+    )
 
 
 def update_session(session_id: str, *, conn: Any | None = None, **fields: Any) -> dict[str, Any]:
     update_data = {**fields, "updated_at": utc_now()}
     assignments = [
-        sql.SQL("{} = %s").format(sql.Identifier(column))
-        for column in update_data.keys()
+        sql.SQL("{} = %s").format(sql.Identifier(column)) for column in update_data.keys()
     ]
     values = [
-        _json(value) if column == "metadata" else value
-        for column, value in update_data.items()
+        _json(value) if column == "metadata" else value for column, value in update_data.items()
     ]
     query = sql.SQL("update sessions set {} where id = %s returning *").format(
         sql.SQL(", ").join(assignments)
@@ -350,20 +357,23 @@ def insert_task_log(
         values (%s, %s, %s, %s, %s, %s, %s, %s)
         returning *
     """
-    return _fetchone(
-        query,
-        (
-            task_id,
-            session_id,
-            event_type,
-            status,
-            step,
-            message,
-            _json(payload),
-            utc_now(),
-        ),
-        conn=conn,
-    ) or {}
+    return (
+        _fetchone(
+            query,
+            (
+                task_id,
+                session_id,
+                event_type,
+                status,
+                step,
+                message,
+                _json(payload),
+                utc_now(),
+            ),
+            conn=conn,
+        )
+        or {}
+    )
 
 
 def list_task_logs(task_id: str, *, conn: Any | None = None) -> list[dict[str, Any]]:
@@ -395,18 +405,21 @@ def create_task_dispatch(
         values (%s, %s, %s, %s, 0, %s, %s)
         returning *
     """
-    return _fetchone(
-        query,
-        (
-            task_id,
-            queue_name,
-            status,
-            _json(payload),
-            utc_now(),
-            utc_now(),
-        ),
-        conn=conn,
-    ) or {}
+    return (
+        _fetchone(
+            query,
+            (
+                task_id,
+                queue_name,
+                status,
+                _json(payload),
+                utc_now(),
+                utc_now(),
+            ),
+            conn=conn,
+        )
+        or {}
+    )
 
 
 def get_task_dispatch(task_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
@@ -443,12 +456,10 @@ def update_task_dispatch(
 ) -> dict[str, Any]:
     update_data = {**fields, "updated_at": utc_now()}
     assignments = [
-        sql.SQL("{} = %s").format(sql.Identifier(column))
-        for column in update_data.keys()
+        sql.SQL("{} = %s").format(sql.Identifier(column)) for column in update_data.keys()
     ]
     values = [
-        _json(value) if column == "payload" else value
-        for column, value in update_data.items()
+        _json(value) if column == "payload" else value for column, value in update_data.items()
     ]
     query = sql.SQL("update task_dispatches set {} where task_id = %s returning *").format(
         sql.SQL(", ").join(assignments)
@@ -457,3 +468,224 @@ def update_task_dispatch(
     if result is None:
         raise PersistenceError(f"Task dispatch '{task_id}' could not be updated")
     return result
+
+
+def get_task_event_counts(*, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            t.task_type,
+            l.event_type,
+            count(*)::bigint as total
+        from task_logs l
+        join tasks t on t.id = l.task_id
+        group by t.task_type, l.event_type
+        order by t.task_type, l.event_type
+        """,
+        conn=conn,
+    )
+
+
+def get_task_status_counts(*, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            task_type,
+            status,
+            count(*)::bigint as total
+        from tasks
+        group by task_type, status
+        order by task_type, status
+        """,
+        conn=conn,
+    )
+
+
+def get_batch_status_counts(*, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        with batch_counts as (
+            select
+                b.id,
+                b.task_type,
+                b.total_tasks,
+                count(*) filter (where t.status = 'queued') as queued_count,
+                count(*) filter (where t.status = 'running') as running_count,
+                count(*) filter (where t.status = 'completed') as completed_count,
+                count(*) filter (where t.status = 'failed') as failed_count,
+                count(*) filter (where t.status = 'cancelled') as cancelled_count
+            from batches b
+            left join tasks t on t.batch_id = b.id
+            group by b.id, b.task_type, b.total_tasks
+        )
+        select
+            task_type,
+            case
+                when cancelled_count = total_tasks then 'cancelled'
+                when completed_count = total_tasks then 'completed'
+                when failed_count = total_tasks then 'failed'
+                when queued_count = total_tasks then 'queued'
+                when running_count > 0 or queued_count > 0 then 'running'
+                else 'partial'
+            end as status,
+            count(*)::bigint as total
+        from batch_counts
+        group by task_type, status
+        order by task_type, status
+        """,
+        conn=conn,
+    )
+
+
+def get_dispatch_status_counts(*, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            status,
+            count(*)::bigint as total
+        from task_dispatches
+        group by status
+        order by status
+        """,
+        conn=conn,
+    )
+
+
+def get_task_duration_stats(*, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            task_type,
+            status,
+            count(*)::bigint as total,
+            coalesce(
+                avg(extract(epoch from (finished_at - started_at))),
+                0
+            )::double precision as avg_seconds,
+            coalesce(
+                max(extract(epoch from (finished_at - started_at))),
+                0
+            )::double precision as max_seconds
+        from tasks
+        where started_at is not null and finished_at is not null
+        group by task_type, status
+        order by task_type, status
+        """,
+        conn=conn,
+    )
+
+
+def get_last_success_timestamps(*, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            task_type,
+            extract(epoch from max(finished_at))::double precision as finished_at_epoch
+        from tasks
+        where status = 'completed'
+          and finished_at is not null
+        group by task_type
+        order by task_type
+        """,
+        conn=conn,
+    )
+
+
+def list_pending_dispatches(
+    *,
+    older_than_minutes: int,
+    limit: int = 100,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            td.task_id,
+            td.queue_name,
+            td.status,
+            td.attempts,
+            td.last_error,
+            td.created_at,
+            td.updated_at,
+            td.dispatched_at,
+            t.batch_id,
+            t.task_type,
+            t.file_name
+        from task_dispatches td
+        join tasks t on t.id = td.task_id
+        where td.status in ('pending', 'failed')
+          and td.updated_at <= now() - make_interval(mins => %s)
+        order by td.updated_at asc
+        limit %s
+        """,
+        (older_than_minutes, limit),
+        conn=conn,
+    )
+
+
+def list_stuck_tasks(
+    *,
+    older_than_minutes: int,
+    limit: int = 100,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            id,
+            batch_id,
+            session_id,
+            task_type,
+            file_name,
+            status,
+            priority,
+            started_at,
+            updated_at
+        from tasks
+        where status = 'running'
+          and started_at <= now() - make_interval(mins => %s)
+        order by started_at asc
+        limit %s
+        """,
+        (older_than_minutes, limit),
+        conn=conn,
+    )
+
+
+def get_failed_task_counts(*, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            task_type,
+            count(*)::bigint as total
+        from tasks
+        where status = 'failed'
+        group by task_type
+        order by task_type
+        """,
+        conn=conn,
+    )
+
+
+def count_pending_dispatches(*, conn: Any | None = None) -> int:
+    result = _fetchone(
+        """
+        select count(*)::bigint as total
+        from task_dispatches
+        where status in ('pending', 'failed')
+        """,
+        conn=conn,
+    )
+    return int((result or {}).get("total") or 0)
+
+
+def count_running_tasks(*, conn: Any | None = None) -> int:
+    result = _fetchone(
+        """
+        select count(*)::bigint as total
+        from tasks
+        where status = 'running'
+        """,
+        conn=conn,
+    )
+    return int((result or {}).get("total") or 0)

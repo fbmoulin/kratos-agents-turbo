@@ -30,7 +30,7 @@ Delivered:
 - schema bootstrap
 - event-first architecture skeleton
 
-### Phase 2 — Consolidation
+### Phase 2 — Operational Closeout
 
 Status: complete
 
@@ -42,10 +42,16 @@ Delivered:
 - `GET /tasks/{task_id}/events`
 - registry hardening and fail-fast validation
 - expanded tests for API, task lifecycle, and catalog validation
+- dedicated Celery workers per queue profile
+- bounded retry policy with explicit retry classification
+- Prometheus metrics endpoint and operational summary endpoint
+- optional OpenTelemetry bootstrap for API/worker/Postgres/Redis
+- local Prometheus, Grafana, and Flower operator stack
+- GitHub Actions CI for lint, tests, compose validation, import smoke, and Docker build
 
 ### Phase 3 — Batch MVP
 
-Status: in progress
+Status: next
 
 Delivered in the current slice:
 
@@ -71,12 +77,12 @@ Status: planned
 
 Priority backlog:
 
-1. controlled retry semantics on top of the current idempotency baseline
-2. stronger persistence failure handling and recovery semantics
-3. object storage for large document payloads in production
-4. richer operational audit views and event filtering
-5. broader task/session integration tests against real persistence
-6. metrics/tracing beyond basic structured logs
+1. throughput validation for `50` `despacho` and `20` `decisao`
+2. object storage for large document payloads in production
+3. richer operational audit views and event filtering
+4. broader task/session integration tests against real persistence
+5. PDF ingestion/extraction pipeline
+6. spreadsheet-driven batch-candidate analysis skill/agent
 
 ## TODOs
 
@@ -84,15 +90,15 @@ Priority backlog:
 
 - add integration validation for real Supabase Postgres-backed task/session/event writes
 - replace local staging with production-grade object storage when deployment hardening starts
-- review retry policy and failure semantics for batch items
-- review per-queue worker concurrency for despacho vs decisao
+- benchmark per-queue worker concurrency for despacho vs decisao
+- validate reconcile and retry behavior under broker outage scenarios
 
 ### Observability
 
 - add filtered event views by event type or step
 - add batch-level event or audit projection if operator needs outgrow derived summaries
-- add task duration and queue latency visibility
-- define minimal operational metrics for success/failure/cancelled counts
+- add dashboards and alert rules on top of Prometheus/Grafana
+- validate OTLP export path in a real collector-backed environment
 
 ### Catalog and Agents
 
@@ -104,7 +110,7 @@ Priority backlog:
 
 - keep `README.md` aligned with public batch API and lifecycle behavior
 - update `AGENTS.md` whenever repo-specific working rules change
-- introduce an explicit changelog if delivery cadence increases
+- keep local runbooks aligned with retry/reconcile/metrics behavior
 
 ## Out of Scope for the Current Roadmap Slice
 
@@ -112,6 +118,7 @@ Priority backlog:
 - dashboard UI
 - websocket streaming
 - full authentication/authorization
+- LGPD/anonymization
 - multi-agent orchestration
 - RAG/vector database integration
 - embeddings
@@ -122,10 +129,12 @@ Priority backlog:
 The expected validation baseline for ongoing changes is:
 
 ```bash
+python -m ruff check src tests .github
 python -m compileall src tests
 pytest -q
 docker compose config
 python -c "import pathlib, sys; sys.path.insert(0, str(pathlib.Path('.').resolve())); import src.api.main, src.worker.tasks, src.mcp.server; print('imports-ok')"
+docker build . -t kratos-agents-turbo-local
 ```
 
 Any future phase should preserve this baseline and extend it rather than replace it.

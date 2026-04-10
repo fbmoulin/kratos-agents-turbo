@@ -9,8 +9,13 @@ def test_router_prefers_more_specific_agent_for_task_type(monkeypatch):
     registry = SimpleNamespace(
         get=lambda agent_id: None,
         list=lambda: [
-            SimpleNamespace(id="legal-document-agent", config={"supported_task_types": ["despacho", "decisao", "sentenca"]}),
-            SimpleNamespace(id="legal-despacho-agent", config={"supported_task_types": ["despacho"]}),
+            SimpleNamespace(
+                id="legal-document-agent",
+                config={"supported_task_types": ["despacho", "decisao", "sentenca"]},
+            ),
+            SimpleNamespace(
+                id="legal-despacho-agent", config={"supported_task_types": ["despacho"]}
+            ),
         ],
     )
     monkeypatch.setattr(

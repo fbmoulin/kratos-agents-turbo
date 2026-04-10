@@ -22,6 +22,13 @@ def _get_int(name: str, default: int) -> int:
     return int(value)
 
 
+def _get_bool(name: str, default: bool) -> bool:
+    value = _get_env(name)
+    if value in (None, ""):
+        return default
+    return value.lower() in {"1", "true", "yes", "on"}
+
+
 def _get_list(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     value = _get_env(name)
     if not value:
@@ -44,6 +51,16 @@ class Settings:
     celery_task_queue: str
     celery_despacho_queue: str
     celery_decisao_queue: str
+    celery_default_worker_concurrency: int
+    celery_despacho_worker_concurrency: int
+    celery_decisao_worker_concurrency: int
+    celery_worker_prefetch_multiplier: int
+    celery_visibility_timeout: int
+    celery_retry_backoff_base_seconds: int
+    celery_retry_backoff_max_seconds: int
+    celery_despacho_max_retries: int
+    celery_decisao_max_retries: int
+    celery_sentenca_max_retries: int
     default_agent_id: str
     default_task_message: str
     default_task_type: str
@@ -59,6 +76,12 @@ class Settings:
     database_max_pool_size: int
     supabase_url: str | None
     supabase_key: str | None
+    operational_pending_dispatch_after_minutes: int
+    operational_stuck_task_after_minutes: int
+    otel_enabled: bool
+    otel_service_namespace: str
+    otel_exporter_otlp_endpoint: str | None
+    otel_exporter_otlp_headers: str | None
     catalog_path: Path
 
     def health_payload(self) -> dict[str, str]:
@@ -82,6 +105,13 @@ class Settings:
             return self.default_decisao_priority
         return self.default_sentenca_priority
 
+    def max_retries_for_task_type(self, task_type: str) -> int:
+        if task_type == "despacho":
+            return self.celery_despacho_max_retries
+        if task_type == "decisao":
+            return self.celery_decisao_max_retries
+        return self.celery_sentenca_max_retries
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
@@ -102,8 +132,17 @@ def get_settings() -> Settings:
         celery_task_queue=_get_env("CELERY_TASK_QUEUE", "legal-tasks") or "legal-tasks",
         celery_despacho_queue=_get_env("CELERY_DESPACHO_QUEUE", "legal-despacho")
         or "legal-despacho",
-        celery_decisao_queue=_get_env("CELERY_DECISAO_QUEUE", "legal-decisao")
-        or "legal-decisao",
+        celery_decisao_queue=_get_env("CELERY_DECISAO_QUEUE", "legal-decisao") or "legal-decisao",
+        celery_default_worker_concurrency=_get_int("CELERY_DEFAULT_WORKER_CONCURRENCY", 1),
+        celery_despacho_worker_concurrency=_get_int("CELERY_DESPACHO_WORKER_CONCURRENCY", 4),
+        celery_decisao_worker_concurrency=_get_int("CELERY_DECISAO_WORKER_CONCURRENCY", 2),
+        celery_worker_prefetch_multiplier=_get_int("CELERY_WORKER_PREFETCH_MULTIPLIER", 1),
+        celery_visibility_timeout=_get_int("CELERY_VISIBILITY_TIMEOUT", 7200),
+        celery_retry_backoff_base_seconds=_get_int("CELERY_RETRY_BACKOFF_BASE_SECONDS", 30),
+        celery_retry_backoff_max_seconds=_get_int("CELERY_RETRY_BACKOFF_MAX_SECONDS", 600),
+        celery_despacho_max_retries=_get_int("CELERY_DESPACHO_MAX_RETRIES", 3),
+        celery_decisao_max_retries=_get_int("CELERY_DECISAO_MAX_RETRIES", 2),
+        celery_sentenca_max_retries=_get_int("CELERY_SENTENCA_MAX_RETRIES", 1),
         default_agent_id=_get_env("DEFAULT_AGENT_ID", "legal-document-agent")
         or "legal-document-agent",
         default_task_message=_get_env(
@@ -133,5 +172,14 @@ def get_settings() -> Settings:
         database_max_pool_size=_get_int("DATABASE_MAX_POOL_SIZE", 5),
         supabase_url=_get_env("SUPABASE_URL"),
         supabase_key=_get_env("SUPABASE_KEY"),
+        operational_pending_dispatch_after_minutes=_get_int(
+            "OPS_PENDING_DISPATCH_AFTER_MINUTES",
+            5,
+        ),
+        operational_stuck_task_after_minutes=_get_int("OPS_STUCK_TASK_AFTER_MINUTES", 30),
+        otel_enabled=_get_bool("OTEL_ENABLED", False),
+        otel_service_namespace=_get_env("OTEL_SERVICE_NAMESPACE", "kratos") or "kratos",
+        otel_exporter_otlp_endpoint=_get_env("OTEL_EXPORTER_OTLP_ENDPOINT"),
+        otel_exporter_otlp_headers=_get_env("OTEL_EXPORTER_OTLP_HEADERS"),
         catalog_path=base_dir / "src" / "agent" / "catalog" / "agents.yaml",
     )

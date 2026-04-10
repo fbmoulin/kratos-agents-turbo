@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-
 from src import skills
 from src.core import configure_logging, get_settings
 
