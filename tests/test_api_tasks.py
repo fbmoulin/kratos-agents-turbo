@@ -18,11 +18,16 @@ def test_post_tasks_accepts_create_only_submission(monkeypatch):
         calls["event"] = kwargs
         return kwargs
 
+    def fake_stage_upload(**kwargs):
+        calls["stage_upload"] = kwargs
+        return {"staged_path": "/tmp/task-1-sample.pdf", "size_bytes": 22}
+
     def fake_apply_async(**kwargs):
         calls["apply_async"] = kwargs
 
     monkeypatch.setattr("src.api.main.services.task_service.create_task", fake_create_task)
     monkeypatch.setattr("src.api.main.services.event_store.append", fake_append)
+    monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
     monkeypatch.setattr("src.api.main.process_document_task.apply_async", fake_apply_async)
 
     client = TestClient(app)
@@ -35,8 +40,11 @@ def test_post_tasks_accepts_create_only_submission(monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "queued"
+    assert payload["queue"] == "legal-despacho"
     assert calls["event"]["session_id"] is None
     assert calls["apply_async"]["kwargs"]["requested_session_id"] is None
+    assert calls["apply_async"]["kwargs"]["staged_path"] == "/tmp/task-1-sample.pdf"
+    assert calls["stage_upload"]["batch_id"] is None
 
 
 def test_post_tasks_rejects_malformed_session_id():

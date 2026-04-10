@@ -7,6 +7,7 @@ This repository is the platform-core backend for a legal agent execution system.
 Work should preserve these architectural constraints:
 
 - event-first execution
+- batch-oriented MVP for despacho and decisao
 - explicit task and session lifecycle
 - append-only execution events
 - declarative agent registry
@@ -15,12 +16,14 @@ Work should preserve these architectural constraints:
 ## Working Rules
 
 - Treat `POST /tasks` as create-only unless a future change explicitly introduces a public resume/rebind contract.
+- Treat `POST /batches` as create-only; do not add resume/rebind semantics to batch submission in this phase.
 - Keep `TaskService` authoritative for task lifecycle operations.
 - Keep `SessionService` authoritative for session lifecycle operations.
 - Avoid writing task status transitions directly through `db.update_task(...)` outside `TaskService`.
 - Avoid placing heavy domain logic in the API layer.
 - Keep orchestrator logic focused on coordination, not legal reasoning details.
 - Maintain structured logging with `task_id` and `session_id` where operationally relevant.
+- Prefer queue selection by `task_type` instead of a single undifferentiated worker flow.
 
 ## Catalog and Agent Rules
 
@@ -28,13 +31,16 @@ Work should preserve these architectural constraints:
 - Registry loading must fail fast on invalid catalog structure.
 - New catalog fields should be introduced conservatively and validated explicitly.
 - Do not add `projects.yaml` unless there is a concrete runtime consumer.
+- Preserve dedicated profiles for `despacho` and `decisao` unless a better routing contract is introduced.
 
 ## Runtime and Persistence Rules
 
 - Keep Redis as queue transport and Supabase/Postgres as persistence of record.
+- Keep broker payloads small; prefer staged file references over raw document bytes in Celery arguments.
 - Keep schema/code alignment between `src/db.py` and `infra/sql/schema.sql`.
 - Prefer incremental service-layer changes over ad hoc logic in worker or API handlers.
 - Do not introduce schema changes unless they are justified by a concrete runtime need.
+- Keep the API and worker aligned on the shared staging path configured by `LOCAL_STORAGE_PATH`.
 
 ## Validation Expectations
 
@@ -49,7 +55,7 @@ python -c "import pathlib, sys; sys.path.insert(0, str(pathlib.Path('.').resolve
 
 ## Near-Term Priorities
 
-- strengthen runtime reliability
-- improve observability and audit views
-- expand tests around lifecycle and persistence behavior
-- prepare safe growth toward richer legal processing pipelines
+- stabilize batch throughput for `despacho` and `decisao`
+- improve observability and audit views for batches
+- expand tests around batch lifecycle and persistence behavior
+- prepare safe growth toward production storage and retry semantics

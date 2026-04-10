@@ -24,6 +24,7 @@ class TaskService:
         message: str,
         priority: int,
         requested_agent_id: str | None,
+        batch_id: str | None = None,
         execution_mode: str = "document",
         input_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -35,6 +36,7 @@ class TaskService:
             message=message,
             priority=priority,
             requested_agent_id=requested_agent_id,
+            batch_id=batch_id,
             session_id=None,
             execution_mode=execution_mode,
             input_metadata=input_metadata,
@@ -46,8 +48,13 @@ class TaskService:
             raise NotFoundError(f"Task '{task_id}' not found")
         return task
 
-    def list_tasks(self, status: str | None = None) -> list[dict[str, Any]]:
-        return db.list_tasks(status=status)
+    def list_tasks(
+        self,
+        status: str | None = None,
+        *,
+        batch_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return db.list_tasks(status=status, batch_id=batch_id)
 
     def list_events(self, task_id: str) -> list[dict[str, Any]]:
         self.get_task(task_id)

@@ -1,4 +1,46 @@
 agents:
+  - id: legal-despacho-agent
+    name: Legal Despacho Agent
+    implementation: legal_agent
+    system_prompt: >
+      Você é um agente jurídico executor especializado em despachos.
+      Priorize objetividade, velocidade operacional e minuta revisável.
+    skills:
+      - extract_text_from_pdf
+      - classify_document
+      - generate_decision
+    tools: []
+    capabilities:
+      - document_extraction
+      - legal_classification
+      - draft_generation
+      - batch_despacho
+    config:
+      supported_task_types:
+        - despacho
+      execution_mode: document
+      max_pages: 2
+  - id: legal-decisao-agent
+    name: Legal Decisao Agent
+    implementation: legal_agent
+    system_prompt: >
+      Você é um agente jurídico executor especializado em decisões.
+      Priorize fundamentação suficiente, clareza e rastreabilidade.
+    skills:
+      - extract_text_from_pdf
+      - classify_document
+      - generate_decision
+    tools: []
+    capabilities:
+      - document_extraction
+      - legal_classification
+      - draft_generation
+      - batch_decisao
+    config:
+      supported_task_types:
+        - decisao
+      execution_mode: document
+      max_pages: 4
   - id: legal-document-agent
     name: Legal Document Agent
     implementation: legal_agent
@@ -16,8 +58,6 @@ agents:
       - draft_generation
     config:
       supported_task_types:
-        - despacho
-        - decisao
         - sentenca
       execution_mode: document
-      max_pages: 2
+      max_pages: 5

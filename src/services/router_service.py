@@ -28,9 +28,14 @@ class RouterService:
                 )
             return definition.id
 
+        matching_definitions = []
         for definition in self.registry.list():
             supported_types = definition.config.get("supported_task_types", [])
             if task_type in supported_types:
-                return definition.id
+                matching_definitions.append((len(supported_types), definition.id))
+
+        if matching_definitions:
+            _, best_agent_id = min(matching_definitions, key=lambda item: item[0])
+            return best_agent_id
 
         return self.settings.default_agent_id

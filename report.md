@@ -1,6 +1,6 @@
 # Kratos Agents Turbo — Roadmap and TODOs
 
-This document tracks the engineering backlog after the Phase 2 consolidation pass.
+This document tracks the engineering backlog after the Phase 2 consolidation pass and the start of the batch-processing MVP.
 
 ## Current Baseline
 
@@ -10,7 +10,9 @@ The repository currently includes:
 - task and session lifecycle services
 - append-only event storage
 - API support for task submission, inspection, cancellation, and event listing
+- API support for batch submission, inspection, and batch cancellation
 - Celery-based runtime with Redis
+- staged local input handoff between API and worker
 - Supabase/Postgres persistence schema
 - minimal automated test suite
 
@@ -41,42 +43,64 @@ Delivered:
 - registry hardening and fail-fast validation
 - expanded tests for API, task lifecycle, and catalog validation
 
-### Phase 3 — Next Hardening Targets
+### Phase 3 — Batch MVP
+
+Status: in progress
+
+Delivered in the current slice:
+
+- `batches` persistence model
+- batch submission endpoint and aggregate batch inspection
+- queue routing by `task_type`
+- specific agent profiles for `despacho` and `decisao`
+- local staging to avoid sending full PDFs through Redis
+
+Immediate MVP target:
+
+- sustain `50` `despacho` items per batch
+- sustain `20` `decisao` items per batch
+- keep RAG and embeddings out of scope for this slice
+
+### Phase 4 — Next Hardening Targets
 
 Status: planned
 
 Priority backlog:
 
 1. database migration tooling
-2. stronger persistence failure handling and recovery semantics
-3. object storage for large document payloads
-4. richer operational audit views and event filtering
-5. broader task/session integration tests against real persistence
-6. metrics/tracing beyond basic structured logs
+2. batch idempotency and controlled retry semantics
+3. stronger persistence failure handling and recovery semantics
+4. object storage for large document payloads in production
+5. richer operational audit views and event filtering
+6. broader task/session integration tests against real persistence
+7. metrics/tracing beyond basic structured logs
 
 ## TODOs
 
 ### Runtime and Reliability
 
 - add integration validation for real Supabase-backed task/session/event writes
-- reduce dependency on broker payload size by moving document content out of Celery arguments
-- review retry policy and failure semantics for long-running tasks
+- replace local staging with production-grade object storage when deployment hardening starts
+- review retry policy and failure semantics for batch items
+- add idempotency keys for repeated batch submission
+- review per-queue worker concurrency for despacho vs decisao
 
 ### Observability
 
 - add filtered event views by event type or step
+- add batch-level event or audit projection if operator needs outgrow derived summaries
 - add task duration and queue latency visibility
 - define minimal operational metrics for success/failure/cancelled counts
 
 ### Catalog and Agents
 
-- support more than one agent profile in the catalog
+- maintain separate profiles for `despacho` and `decisao`
 - validate catalog schema more formally if complexity increases
 - define conventions for `execution_mode`, capabilities, and tool metadata
 
 ### Documentation
 
-- keep `README.md` aligned with public API and lifecycle behavior
+- keep `README.md` aligned with public batch API and lifecycle behavior
 - update `AGENTS.md` whenever repo-specific working rules change
 - introduce an explicit changelog if delivery cadence increases
 
@@ -88,6 +112,7 @@ Priority backlog:
 - full authentication/authorization
 - multi-agent orchestration
 - RAG/vector database integration
+- embeddings
 - external court connectors
 
 ## Validation Baseline

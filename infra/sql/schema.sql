@@ -13,8 +13,21 @@ create table if not exists sessions (
     updated_at timestamptz not null default now()
 );
 
+create table if not exists batches (
+    id uuid primary key default gen_random_uuid(),
+    task_type text not null,
+    message text not null,
+    requested_agent_id text,
+    priority integer not null default 0,
+    total_tasks integer not null check (total_tasks > 0),
+    input_metadata jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
 create table if not exists tasks (
     id uuid primary key default gen_random_uuid(),
+    batch_id uuid references batches(id) on delete set null,
     session_id uuid references sessions(id),
     requested_agent_id text,
     agent_id text,
@@ -63,8 +76,12 @@ create table if not exists task_logs (
 );
 
 create index if not exists idx_tasks_status_created_at on tasks (status, created_at desc);
+create index if not exists idx_tasks_batch_id on tasks (batch_id);
 create index if not exists idx_tasks_session_id on tasks (session_id);
 create index if not exists idx_tasks_agent_id on tasks (agent_id);
+create index if not exists idx_tasks_task_type_status_priority_created_at on tasks (task_type, status, priority desc, created_at desc);
+create index if not exists idx_batches_created_at on batches (created_at desc);
+create index if not exists idx_batches_task_type_created_at on batches (task_type, created_at desc);
 create index if not exists idx_sessions_task_id on sessions (task_id);
 create index if not exists idx_sessions_status_created_at on sessions (status, created_at desc);
 create index if not exists idx_task_logs_task_id_created_at on task_logs (task_id, created_at);

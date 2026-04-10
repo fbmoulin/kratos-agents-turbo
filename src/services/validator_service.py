@@ -21,6 +21,15 @@ class ValidatedTaskSubmission:
     content_type: str
 
 
+@dataclass(frozen=True)
+class ValidatedBatchSubmission:
+    message: str
+    task_type: str
+    priority: int
+    requested_agent_id: str | None
+    total_files: int
+
+
 class ValidatorService:
     """Validate API and worker payloads."""
 
@@ -53,21 +62,9 @@ class ValidatorService:
         if mime_type not in {"application/pdf", "application/octet-stream"}:
             raise ValidationError("Unsupported file content type")
 
-        clean_message = (message or self.settings.default_task_message).strip()
-        if not clean_message:
-            raise ValidationError("Message must not be blank")
-        if len(clean_message) > 4000:
-            raise ValidationError("Message exceeds 4000 characters")
-
-        clean_task_type = (task_type or self.settings.default_task_type).strip().lower()
-        if clean_task_type not in self.settings.allowed_task_types:
-            raise ValidationError(
-                f"task_type must be one of: {', '.join(self.settings.allowed_task_types)}"
-            )
-
-        clean_priority = priority if priority is not None else 0
-        if clean_priority < 0 or clean_priority > 10:
-            raise ValidationError("priority must be between 0 and 10")
+        clean_message = self._clean_message(message)
+        clean_task_type = self._clean_task_type(task_type)
+        clean_priority = self._clean_priority(priority, clean_task_type)
 
         if requested_session_id:
             try:
@@ -88,6 +85,31 @@ class ValidatorService:
             content_type=mime_type,
         )
 
+    def validate_batch_submission(
+        self,
+        *,
+        total_files: int,
+        message: str | None,
+        task_type: str | None,
+        priority: int | None,
+        requested_agent_id: str | None,
+    ) -> ValidatedBatchSubmission:
+        if total_files <= 0:
+            raise ValidationError("Batch submission requires at least one file")
+        if total_files > self.settings.max_batch_files:
+            raise ValidationError(
+                f"Batch submission exceeds max file count of {self.settings.max_batch_files}"
+            )
+
+        clean_task_type = self._clean_task_type(task_type)
+        return ValidatedBatchSubmission(
+            message=self._clean_message(message),
+            task_type=clean_task_type,
+            priority=self._clean_priority(priority, clean_task_type),
+            requested_agent_id=requested_agent_id.strip() if requested_agent_id else None,
+            total_files=total_files,
+        )
+
     @staticmethod
     def _sanitize_filename(file_name: str) -> str:
         base_name = os.path.basename(file_name).strip() or "document.pdf"
@@ -96,3 +118,29 @@ class ValidatorService:
         if not sanitized.lower().endswith(".pdf"):
             sanitized = f"{sanitized}.pdf"
         return sanitized
+
+    def _clean_message(self, message: str | None) -> str:
+        clean_message = (message or self.settings.default_task_message).strip()
+        if not clean_message:
+            raise ValidationError("Message must not be blank")
+        if len(clean_message) > 4000:
+            raise ValidationError("Message exceeds 4000 characters")
+        return clean_message
+
+    def _clean_task_type(self, task_type: str | None) -> str:
+        clean_task_type = (task_type or self.settings.default_task_type).strip().lower()
+        if clean_task_type not in self.settings.allowed_task_types:
+            raise ValidationError(
+                f"task_type must be one of: {', '.join(self.settings.allowed_task_types)}"
+            )
+        return clean_task_type
+
+    def _clean_priority(self, priority: int | None, task_type: str) -> int:
+        clean_priority = (
+            priority
+            if priority is not None
+            else self.settings.default_priority_for_task_type(task_type)
+        )
+        if clean_priority < 0 or clean_priority > 10:
+            raise ValidationError("priority must be between 0 and 10")
+        return clean_priority

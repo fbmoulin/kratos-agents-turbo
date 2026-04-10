@@ -38,12 +38,14 @@ def create_task(
     priority: int = 0,
     requested_agent_id: str | None = None,
     agent_id: str | None = None,
+    batch_id: str | None = None,
     session_id: str | None = None,
     execution_mode: str = "document",
     input_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "id": task_id,
+        "batch_id": batch_id,
         "session_id": session_id,
         "requested_agent_id": requested_agent_id,
         "agent_id": agent_id,
@@ -76,11 +78,53 @@ def get_task(task_id: str) -> dict[str, Any] | None:
     return data[0] if data else None
 
 
-def list_tasks(status: str | None = None) -> list[dict[str, Any]]:
+def list_tasks(
+    status: str | None = None,
+    *,
+    batch_id: str | None = None,
+) -> list[dict[str, Any]]:
     query = _get_client().table("tasks").select("*").order("created_at", desc=True)
     if status:
         query = query.eq("status", status)
+    if batch_id:
+        query = query.eq("batch_id", batch_id)
     result = query.execute()
+    return list(result.data or [])
+
+
+def create_batch(
+    *,
+    batch_id: str,
+    task_type: str,
+    message: str,
+    requested_agent_id: str | None,
+    priority: int,
+    total_tasks: int,
+    input_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "id": batch_id,
+        "task_type": task_type,
+        "message": message,
+        "requested_agent_id": requested_agent_id,
+        "priority": priority,
+        "total_tasks": total_tasks,
+        "input_metadata": input_metadata or {},
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
+    }
+    result = _get_client().table("batches").insert(payload).execute()
+    return result.data[0] if result.data else payload
+
+
+def get_batch(batch_id: str) -> dict[str, Any] | None:
+    result = _get_client().table("batches").select("*").eq("id", batch_id).limit(1).execute()
+    data = result.data or []
+    return data[0] if data else None
+
+
+def list_batches() -> list[dict[str, Any]]:
+    result = _get_client().table("batches").select("*").order("created_at", desc=True).execute()
     return list(result.data or [])
 
 

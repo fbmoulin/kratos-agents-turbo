@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-
 from celery import Task
 from celery.exceptions import Ignore
 
@@ -34,7 +32,8 @@ def process_document_task(
     self,
     *,
     task_id: str,
-    file_content_b64: str,
+    staged_path: str | None = None,
+    file_content_b64: str | None = None,
     file_name: str,
     message: str,
     task_type: str,
@@ -42,10 +41,22 @@ def process_document_task(
     requested_agent_id: str | None = None,
     requested_session_id: str | None = None,
     content_type: str = "application/pdf",
+    batch_id: str | None = None,
 ) -> dict[str, object]:
     self.check_cancelled(task_id)
-    file_bytes = base64.b64decode(file_content_b64.encode("utf-8"))
-    logger.info("worker task received", extra={"task_id": task_id, "session_id": "-"})
+    if staged_path:
+        file_bytes = services.staging_service.load_staged_input(staged_path)
+    elif file_content_b64:
+        import base64
+
+        file_bytes = base64.b64decode(file_content_b64.encode("utf-8"))
+    else:
+        raise ValueError("Either staged_path or file_content_b64 must be provided")
+
+    logger.info(
+        "worker task received",
+        extra={"task_id": task_id, "session_id": "-", "batch_id": batch_id or "-"},
+    )
     result = services.orchestrator_service.execute(
         task_id=task_id,
         file_bytes=file_bytes,
