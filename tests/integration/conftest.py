@@ -35,7 +35,8 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         return
     skip_marker = pytest.mark.skip(reason="integration tests require RUN_INTEGRATION_TESTS=1")
     for item in items:
-        item.add_marker(skip_marker)
+        if "tests/integration" in str(item.fspath).replace("\\", "/"):
+            item.add_marker(skip_marker)
 
 
 @pytest.fixture(scope="session", autouse=True)

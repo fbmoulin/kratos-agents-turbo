@@ -7,55 +7,21 @@ from src.api.main import app
 def test_post_batches_accepts_batch_submission(monkeypatch):
     calls: dict[str, object] = {}
 
-    def fake_stage_upload(**kwargs):
+    def fake_submit_batch(**kwargs):
+        calls["submit_batch"] = kwargs
         return {
-            "staged_path": f"/tmp/{kwargs['task_id']}-{kwargs['file_name']}",
-            "size_bytes": len(kwargs["file_bytes"]),
+            "batch_id": "batch-1",
+            "status": "queued",
+            "task_type": "despacho",
+            "priority": 9,
+            "total_tasks": 2,
+            "queue": "legal-despacho",
+            "task_ids": ["task-1", "task-2"],
+            "idempotency_reused": False,
+            "dispatch_summary": {"dispatched": 2, "failed": 0},
         }
 
-    def fake_get_batch_by_idempotency_key(idempotency_key):
-        calls["idempotency_lookup"] = idempotency_key
-        return None
-
-    def fake_create_batch_submission(**kwargs):
-        calls["batch_submission"] = kwargs
-        tasks = []
-        for item in kwargs["task_items"]:
-            tasks.append(
-                {
-                    "id": item["task_id"],
-                    "file_name": item["file_name"],
-                    "task_type": item["task_type"],
-                    "message": item["message"],
-                    "priority": item["priority"],
-                    "requested_agent_id": item["requested_agent_id"],
-                    "input_metadata": item["input_metadata"],
-                }
-            )
-        return {
-            "created": True,
-            "batch": {"id": kwargs["batch_id"]},
-            "tasks": tasks,
-        }
-
-    monkeypatch.setattr(
-        "src.api.main.services.batch_service.get_batch_by_idempotency_key",
-        fake_get_batch_by_idempotency_key,
-    )
-    monkeypatch.setattr(
-        "src.api.main.services.batch_service.create_batch_submission",
-        fake_create_batch_submission,
-    )
-    monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
-
-    def fake_dispatch_tasks(task_ids):
-        calls["dispatch_tasks"] = list(task_ids)
-        return {"dispatched": len(task_ids), "failed": 0}
-
-    monkeypatch.setattr(
-        "src.api.main.services.dispatch_service.dispatch_tasks",
-        fake_dispatch_tasks,
-    )
+    monkeypatch.setattr("src.api.main.services.submission_service.submit_batch", fake_submit_batch)
 
     client = TestClient(app)
     response = client.post(
@@ -74,45 +40,24 @@ def test_post_batches_accepts_batch_submission(monkeypatch):
     assert payload["queue"] == "legal-despacho"
     assert payload["total_tasks"] == 2
     assert len(payload["task_ids"]) == 2
-    assert calls["batch_submission"]["idempotency_key"] is None
-    assert len(calls["batch_submission"]["task_items"]) == 2
-    assert calls["batch_submission"]["task_items"][0]["batch_id"] == payload["batch_id"]
-    assert calls["batch_submission"]["task_items"][0]["input_metadata"]["batch_item_index"] == 1
-    assert calls["batch_submission"]["task_items"][1]["input_metadata"]["batch_item_index"] == 2
-    assert calls["batch_submission"]["task_items"][0]["dispatch_queue"] == "legal-despacho"
+    assert len(calls["submit_batch"]["files"]) == 2
+    assert calls["submit_batch"]["task_type"] == "despacho"
     assert payload["dispatch_summary"]["dispatched"] == 2
 
 
 def test_post_batches_reuses_existing_idempotent_batch(monkeypatch):
-    calls: dict[str, object] = {}
     monkeypatch.setattr(
-        "src.api.main.services.batch_service.get_batch_by_idempotency_key",
-        lambda idempotency_key: {
-            "id": "batch-existing",
-            "task_type": "despacho",
-            "priority": 9,
-            "total_tasks": 2,
-        },
-    )
-    monkeypatch.setattr(
-        "src.api.main.services.batch_service.get_batch_with_tasks",
-        lambda batch_id: {
-            "id": batch_id,
+        "src.api.main.services.submission_service.submit_batch",
+        lambda **kwargs: {
+            "batch_id": "batch-existing",
             "status": "running",
             "task_type": "despacho",
             "priority": 9,
             "total_tasks": 2,
-            "tasks": [{"id": "task-1"}, {"id": "task-2"}],
+            "queue": "legal-despacho",
+            "task_ids": ["task-1", "task-2"],
+            "idempotency_reused": True,
         },
-    )
-
-    def fake_reconcile(limit=100):
-        calls["reconcile_limit"] = limit
-        return {"processed": 1, "dispatched": 1, "failed": 0}
-
-    monkeypatch.setattr(
-        "src.api.main.services.dispatch_service.reconcile_pending",
-        fake_reconcile,
     )
 
     client = TestClient(app)
@@ -125,47 +70,6 @@ def test_post_batches_reuses_existing_idempotent_batch(monkeypatch):
     assert response.status_code == 200
     assert response.json()["batch_id"] == "batch-existing"
     assert response.json()["idempotency_reused"] is True
-    assert calls["reconcile_limit"] == 100
-
-
-def test_post_batches_cleans_up_staged_files_when_transaction_fails(monkeypatch):
-    calls: dict[str, object] = {}
-
-    def fake_stage_upload(**kwargs):
-        return {
-            "staged_path": f"/tmp/{kwargs['task_id']}-{kwargs['file_name']}",
-            "size_bytes": len(kwargs["file_bytes"]),
-        }
-
-    def fake_create_batch_submission(**kwargs):
-        raise RuntimeError("db failed")
-
-    def fake_delete(staged_paths):
-        calls["deleted"] = list(staged_paths)
-
-    monkeypatch.setattr(
-        "src.api.main.services.batch_service.get_batch_by_idempotency_key",
-        lambda idempotency_key: None,
-    )
-    monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
-    monkeypatch.setattr(
-        "src.api.main.services.batch_service.create_batch_submission",
-        fake_create_batch_submission,
-    )
-    monkeypatch.setattr("src.api.main.services.staging_service.delete_staged_inputs", fake_delete)
-
-    client = TestClient(app, raise_server_exceptions=False)
-    response = client.post(
-        "/batches",
-        files=[
-            ("files", ("a.pdf", b"%PDF-1.4 A", "application/pdf")),
-            ("files", ("b.pdf", b"%PDF-1.4 B", "application/pdf")),
-        ],
-        data={"message": "Gerar lotes", "tipo": "despacho"},
-    )
-
-    assert response.status_code == 500
-    assert len(calls["deleted"]) == 2
 
 
 def test_post_batches_rejects_above_max_limit():
@@ -229,47 +133,19 @@ def test_reconcile_dispatches_endpoint(monkeypatch):
 
 
 def test_post_batches_reports_recoverable_dispatch_failure(monkeypatch):
-    def fake_stage_upload(**kwargs):
-        return {
-            "staged_path": f"/tmp/{kwargs['task_id']}-{kwargs['file_name']}",
-            "size_bytes": len(kwargs["file_bytes"]),
-        }
-
-    def fake_create_batch_submission(**kwargs):
-        return {
-            "created": True,
-            "batch": {
-                "id": kwargs["batch_id"],
-                "task_type": kwargs["task_type"],
-                "priority": kwargs["priority"],
-                "total_tasks": len(kwargs["task_items"]),
-            },
-            "tasks": [
-                {
-                    "id": item["task_id"],
-                    "file_name": item["file_name"],
-                    "task_type": item["task_type"],
-                    "message": item["message"],
-                    "priority": item["priority"],
-                    "requested_agent_id": item["requested_agent_id"],
-                    "input_metadata": item["input_metadata"],
-                }
-                for item in kwargs["task_items"]
-            ],
-        }
-
-    def fake_dispatch_tasks(task_ids):
-        return {"dispatched": 0, "failed": len(task_ids)}
-
     monkeypatch.setattr(
-        "src.api.main.services.batch_service.get_batch_by_idempotency_key", lambda _: None
-    )
-    monkeypatch.setattr(
-        "src.api.main.services.batch_service.create_batch_submission", fake_create_batch_submission
-    )
-    monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
-    monkeypatch.setattr(
-        "src.api.main.services.dispatch_service.dispatch_tasks", fake_dispatch_tasks
+        "src.api.main.services.submission_service.submit_batch",
+        lambda **kwargs: {
+            "batch_id": "batch-reconcile",
+            "status": "queued",
+            "task_type": "despacho",
+            "priority": 9,
+            "total_tasks": 1,
+            "queue": "legal-despacho",
+            "task_ids": ["task-1"],
+            "idempotency_reused": False,
+            "dispatch_summary": {"dispatched": 0, "failed": 1},
+        },
     )
 
     client = TestClient(app)

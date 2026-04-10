@@ -24,6 +24,7 @@ def test_operations_summary_returns_operational_snapshot(monkeypatch):
         lambda **kwargs: {
             "open_batches": [{"id": "batch-1", "status": "running"}],
             "pending_dispatches": [{"task_id": "task-1", "status": "failed"}],
+            "dispatched_but_queued": [{"id": "task-3", "status": "queued"}],
             "stuck_tasks": [{"id": "task-2", "status": "running"}],
             "failed_tasks_by_type": [{"task_type": "decisao", "total": 1}],
             "worker_heartbeats": [{"worker": "despacho@host", "status": "pong"}],
@@ -40,6 +41,7 @@ def test_operations_summary_returns_operational_snapshot(monkeypatch):
     payload = response.json()
     assert payload["open_batches"][0]["id"] == "batch-1"
     assert payload["pending_dispatches"][0]["task_id"] == "task-1"
+    assert payload["dispatched_but_queued"][0]["id"] == "task-3"
     assert payload["stuck_tasks"][0]["id"] == "task-2"
     assert payload["failed_tasks_by_type"][0]["task_type"] == "decisao"
     assert payload["worker_heartbeats"][0]["worker"] == "despacho@host"

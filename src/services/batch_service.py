@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from typing import Any
 
 from psycopg.errors import UniqueViolation
@@ -154,61 +153,36 @@ class BatchService:
         return db.get_batch_by_idempotency_key(idempotency_key)
 
     def list_batches(self) -> list[dict[str, Any]]:
-        return [self._summary_for_batch(batch, include_tasks=False) for batch in db.list_batches()]
+        return [self._build_batch_summary(summary) for summary in db.list_batch_summaries()]
 
     def get_batch_with_tasks(self, batch_id: str) -> dict[str, Any]:
-        batch = self.get_batch(batch_id)
-        return self._summary_for_batch(batch, include_tasks=True)
+        batch = db.get_batch_summary(batch_id)
+        if batch is None:
+            raise NotFoundError(f"Batch '{batch_id}' not found")
+        summary = self._build_batch_summary(batch)
+        summary["tasks"] = [
+            {
+                "id": task["id"],
+                "file_name": task["file_name"],
+                "status": task["status"],
+                "priority": task["priority"],
+                "session_id": task.get("session_id"),
+                "batch_item_index": task.get("batch_item_index"),
+            }
+            for task in db.list_batch_task_views(batch_id)
+        ]
+        return summary
 
-    def _summary_for_batch(
-        self,
-        batch: dict[str, Any],
-        *,
-        include_tasks: bool,
-    ) -> dict[str, Any]:
-        tasks = self.task_service.list_tasks(batch_id=batch["id"])
-        tasks.sort(
-            key=lambda task: (
-                int(task.get("input_metadata", {}).get("batch_item_index") or 0),
-                str(task.get("created_at") or ""),
-            )
-        )
-        counts = Counter(task["status"] for task in tasks)
-        total_tasks = batch["total_tasks"]
-        if counts["cancelled"] == total_tasks:
-            status = "cancelled"
-        elif counts["completed"] == total_tasks:
-            status = "completed"
-        elif counts["failed"] == total_tasks:
-            status = "failed"
-        elif counts["queued"] == total_tasks:
-            status = "queued"
-        elif counts["running"] > 0 or counts["queued"] > 0:
-            status = "running"
-        else:
-            status = "partial"
-
-        summary = {
+    @staticmethod
+    def _build_batch_summary(batch: dict[str, Any]) -> dict[str, Any]:
+        return {
             **batch,
-            "status": status,
+            "status": batch["status"],
             "counts": {
-                "queued": counts["queued"],
-                "running": counts["running"],
-                "completed": counts["completed"],
-                "failed": counts["failed"],
-                "cancelled": counts["cancelled"],
+                "queued": int(batch.get("queued_count") or 0),
+                "running": int(batch.get("running_count") or 0),
+                "completed": int(batch.get("completed_count") or 0),
+                "failed": int(batch.get("failed_count") or 0),
+                "cancelled": int(batch.get("cancelled_count") or 0),
             },
         }
-        if include_tasks:
-            summary["tasks"] = [
-                {
-                    "id": task["id"],
-                    "file_name": task["file_name"],
-                    "status": task["status"],
-                    "priority": task["priority"],
-                    "session_id": task.get("session_id"),
-                    "batch_item_index": task.get("input_metadata", {}).get("batch_item_index"),
-                }
-                for task in tasks
-            ]
-        return summary

@@ -32,14 +32,6 @@ def test_batch_service_reuses_existing_batch_by_idempotency_key(monkeypatch):
         "src.services.batch_service.db.get_batch_by_idempotency_key",
         lambda idempotency_key, conn=None: {"id": "batch-1"},
     )
-    monkeypatch.setattr(
-        "src.services.batch_service.db.list_batches",
-        lambda conn=None: [],
-    )
-    monkeypatch.setattr(
-        "src.services.batch_service.db.get_batch",
-        lambda batch_id, conn=None: {"id": batch_id, "total_tasks": 1},
-    )
     result = service.create_batch_submission(
         batch_id="batch-new",
         task_type="despacho",
@@ -121,3 +113,88 @@ def test_batch_service_accepts_uuid_records_from_postgres(monkeypatch):
     assert event_calls[0]["payload"]["batch_id"] == created_batch_id
     assert dispatch_calls[0]["payload"]["task_id"] == created_task_id
     assert dispatch_calls[0]["payload"]["batch_id"] == created_batch_id
+
+
+def test_list_batches_uses_sql_batch_summaries(monkeypatch):
+    service = BatchService(task_service=SimpleNamespace(), event_store=SimpleNamespace())
+    monkeypatch.setattr(
+        "src.services.batch_service.db.list_batch_summaries",
+        lambda: [
+            {
+                "id": "batch-1",
+                "status": "running",
+                "queued_count": 1,
+                "running_count": 2,
+                "completed_count": 3,
+                "failed_count": 0,
+                "cancelled_count": 0,
+                "total_tasks": 6,
+            }
+        ],
+    )
+
+    result = service.list_batches()
+
+    assert result == [
+        {
+            "id": "batch-1",
+            "status": "running",
+            "queued_count": 1,
+            "running_count": 2,
+            "completed_count": 3,
+            "failed_count": 0,
+            "cancelled_count": 0,
+            "total_tasks": 6,
+            "counts": {
+                "queued": 1,
+                "running": 2,
+                "completed": 3,
+                "failed": 0,
+                "cancelled": 0,
+            },
+        }
+    ]
+
+
+def test_get_batch_with_tasks_uses_sql_summary_and_task_projection(monkeypatch):
+    service = BatchService(task_service=SimpleNamespace(), event_store=SimpleNamespace())
+    monkeypatch.setattr(
+        "src.services.batch_service.db.get_batch_summary",
+        lambda batch_id: {
+            "id": batch_id,
+            "status": "completed",
+            "queued_count": 0,
+            "running_count": 0,
+            "completed_count": 2,
+            "failed_count": 0,
+            "cancelled_count": 0,
+            "total_tasks": 2,
+        },
+    )
+    monkeypatch.setattr(
+        "src.services.batch_service.db.list_batch_task_views",
+        lambda batch_id: [
+            {
+                "id": "task-1",
+                "file_name": "a.pdf",
+                "status": "completed",
+                "priority": 9,
+                "session_id": "session-1",
+                "batch_item_index": 1,
+            }
+        ],
+    )
+
+    result = service.get_batch_with_tasks("batch-1")
+
+    assert result["counts"]["completed"] == 2
+    assert result["tasks"] == [
+        {
+            "id": "task-1",
+            "file_name": "a.pdf",
+            "status": "completed",
+            "priority": 9,
+            "session_id": "session-1",
+            "batch_item_index": 1,
+        }
+    ]

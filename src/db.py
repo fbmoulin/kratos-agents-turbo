@@ -268,6 +268,237 @@ def list_batches(*, conn: Any | None = None) -> list[dict[str, Any]]:
     return _fetchall("select * from batches order by created_at desc", conn=conn)
 
 
+def list_batch_summaries(*, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        with batch_counts as (
+            select
+                b.id,
+                b.task_type,
+                b.message,
+                b.requested_agent_id,
+                b.priority,
+                b.total_tasks,
+                b.idempotency_key,
+                b.input_metadata,
+                b.created_at,
+                b.updated_at,
+                count(*) filter (where t.status = 'queued') as queued_count,
+                count(*) filter (where t.status = 'running') as running_count,
+                count(*) filter (where t.status = 'completed') as completed_count,
+                count(*) filter (where t.status = 'failed') as failed_count,
+                count(*) filter (where t.status = 'cancelled') as cancelled_count
+            from batches b
+            left join tasks t on t.batch_id = b.id
+            group by
+                b.id,
+                b.task_type,
+                b.message,
+                b.requested_agent_id,
+                b.priority,
+                b.total_tasks,
+                b.idempotency_key,
+                b.input_metadata,
+                b.created_at,
+                b.updated_at
+        )
+        select
+            id,
+            task_type,
+            message,
+            requested_agent_id,
+            priority,
+            total_tasks,
+            idempotency_key,
+            input_metadata,
+            created_at,
+            updated_at,
+            case
+                when cancelled_count = total_tasks then 'cancelled'
+                when completed_count = total_tasks then 'completed'
+                when failed_count = total_tasks then 'failed'
+                when queued_count = total_tasks then 'queued'
+                when running_count > 0 or queued_count > 0 then 'running'
+                else 'partial'
+            end as status,
+            queued_count::bigint as queued_count,
+            running_count::bigint as running_count,
+            completed_count::bigint as completed_count,
+            failed_count::bigint as failed_count,
+            cancelled_count::bigint as cancelled_count
+        from batch_counts
+        order by created_at desc
+        """,
+        conn=conn,
+    )
+
+
+def get_batch_summary(batch_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
+    return _fetchone(
+        """
+        with batch_counts as (
+            select
+                b.id,
+                b.task_type,
+                b.message,
+                b.requested_agent_id,
+                b.priority,
+                b.total_tasks,
+                b.idempotency_key,
+                b.input_metadata,
+                b.created_at,
+                b.updated_at,
+                count(*) filter (where t.status = 'queued') as queued_count,
+                count(*) filter (where t.status = 'running') as running_count,
+                count(*) filter (where t.status = 'completed') as completed_count,
+                count(*) filter (where t.status = 'failed') as failed_count,
+                count(*) filter (where t.status = 'cancelled') as cancelled_count
+            from batches b
+            left join tasks t on t.batch_id = b.id
+            where b.id = %s
+            group by
+                b.id,
+                b.task_type,
+                b.message,
+                b.requested_agent_id,
+                b.priority,
+                b.total_tasks,
+                b.idempotency_key,
+                b.input_metadata,
+                b.created_at,
+                b.updated_at
+        )
+        select
+            id,
+            task_type,
+            message,
+            requested_agent_id,
+            priority,
+            total_tasks,
+            idempotency_key,
+            input_metadata,
+            created_at,
+            updated_at,
+            case
+                when cancelled_count = total_tasks then 'cancelled'
+                when completed_count = total_tasks then 'completed'
+                when failed_count = total_tasks then 'failed'
+                when queued_count = total_tasks then 'queued'
+                when running_count > 0 or queued_count > 0 then 'running'
+                else 'partial'
+            end as status,
+            queued_count::bigint as queued_count,
+            running_count::bigint as running_count,
+            completed_count::bigint as completed_count,
+            failed_count::bigint as failed_count,
+            cancelled_count::bigint as cancelled_count
+        from batch_counts
+        """,
+        (batch_id,),
+        conn=conn,
+    )
+
+
+def list_batch_task_views(batch_id: str, *, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            id,
+            file_name,
+            status,
+            priority,
+            session_id,
+            coalesce((input_metadata ->> 'batch_item_index')::int, 0) as batch_item_index,
+            created_at
+        from tasks
+        where batch_id = %s
+        order by batch_item_index asc, created_at asc
+        """,
+        (batch_id,),
+        conn=conn,
+    )
+
+
+def list_open_batch_summaries(
+    *,
+    limit: int = 25,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        with batch_counts as (
+            select
+                b.id,
+                b.task_type,
+                b.message,
+                b.requested_agent_id,
+                b.priority,
+                b.total_tasks,
+                b.idempotency_key,
+                b.input_metadata,
+                b.created_at,
+                b.updated_at,
+                count(*) filter (where t.status = 'queued') as queued_count,
+                count(*) filter (where t.status = 'running') as running_count,
+                count(*) filter (where t.status = 'completed') as completed_count,
+                count(*) filter (where t.status = 'failed') as failed_count,
+                count(*) filter (where t.status = 'cancelled') as cancelled_count
+            from batches b
+            left join tasks t on t.batch_id = b.id
+            group by
+                b.id,
+                b.task_type,
+                b.message,
+                b.requested_agent_id,
+                b.priority,
+                b.total_tasks,
+                b.idempotency_key,
+                b.input_metadata,
+                b.created_at,
+                b.updated_at
+        )
+        select
+            id,
+            task_type,
+            message,
+            requested_agent_id,
+            priority,
+            total_tasks,
+            idempotency_key,
+            input_metadata,
+            created_at,
+            updated_at,
+            case
+                when cancelled_count = total_tasks then 'cancelled'
+                when completed_count = total_tasks then 'completed'
+                when failed_count = total_tasks then 'failed'
+                when queued_count = total_tasks then 'queued'
+                when running_count > 0 or queued_count > 0 then 'running'
+                else 'partial'
+            end as status,
+            queued_count::bigint as queued_count,
+            running_count::bigint as running_count,
+            completed_count::bigint as completed_count,
+            failed_count::bigint as failed_count,
+            cancelled_count::bigint as cancelled_count
+        from batch_counts
+        where
+            case
+                when cancelled_count = total_tasks then 'cancelled'
+                when completed_count = total_tasks then 'completed'
+                when failed_count = total_tasks then 'failed'
+                when queued_count = total_tasks then 'queued'
+                when running_count > 0 or queued_count > 0 then 'running'
+                else 'partial'
+            end in ('queued', 'running', 'partial')
+        order by created_at desc
+        limit %s
+        """,
+        (limit,),
+        conn=conn,
+    )
+
+
 def create_session(
     *,
     session_id: str,
@@ -723,6 +954,38 @@ def list_stuck_tasks(
         where status = 'running'
           and started_at <= now() - make_interval(mins => %s)
         order by started_at asc
+        limit %s
+        """,
+        (older_than_minutes, limit),
+        conn=conn,
+    )
+
+
+def list_dispatched_but_queued_tasks(
+    *,
+    older_than_minutes: int,
+    limit: int = 100,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    return _fetchall(
+        """
+        select
+            t.id,
+            t.batch_id,
+            t.session_id,
+            t.task_type,
+            t.file_name,
+            t.status,
+            t.priority,
+            td.queue_name,
+            td.dispatched_at,
+            td.updated_at
+        from tasks t
+        join task_dispatches td on td.task_id = t.id
+        where t.status = 'queued'
+          and td.status = 'dispatched'
+          and coalesce(td.dispatched_at, td.updated_at) <= now() - make_interval(mins => %s)
+        order by coalesce(td.dispatched_at, td.updated_at) asc
         limit %s
         """,
         (older_than_minutes, limit),

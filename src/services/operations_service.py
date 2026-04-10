@@ -37,6 +37,17 @@ class OperationsService:
             limit=limit,
         )
 
+    def list_dispatched_but_queued_tasks(
+        self,
+        *,
+        older_than_minutes: int,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        return db.list_dispatched_but_queued_tasks(
+            older_than_minutes=older_than_minutes,
+            limit=limit,
+        )
+
     def summary(
         self,
         *,
@@ -44,14 +55,16 @@ class OperationsService:
         stuck_task_after_minutes: int,
         limit: int = 25,
     ) -> dict[str, Any]:
-        open_batches = [
-            batch
-            for batch in self.batch_service.list_batches()
-            if batch["status"] in {"queued", "running", "partial"}
-        ][:limit]
         return {
-            "open_batches": open_batches,
+            "open_batches": [
+                self.batch_service._build_batch_summary(batch)
+                for batch in db.list_open_batch_summaries(limit=limit)
+            ],
             "pending_dispatches": self.list_pending_dispatches(
+                older_than_minutes=pending_dispatch_after_minutes,
+                limit=limit,
+            ),
+            "dispatched_but_queued": self.list_dispatched_but_queued_tasks(
                 older_than_minutes=pending_dispatch_after_minutes,
                 limit=limit,
             ),
