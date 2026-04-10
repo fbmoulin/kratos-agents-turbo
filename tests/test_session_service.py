@@ -15,6 +15,7 @@ def test_create_or_load_session_accepts_same_task_and_agent():
         "agent_id": "agent-1",
         "status": "queued",
     }
+    session_manager.load_session_by_task.return_value = None
     service = SessionService(session_manager=session_manager)
 
     session = service.create_or_load_session(
@@ -35,6 +36,7 @@ def test_create_or_load_session_rejects_cross_task_rebind():
         "agent_id": "agent-1",
         "status": "queued",
     }
+    session_manager.load_session_by_task.return_value = None
     service = SessionService(session_manager=session_manager)
 
     with pytest.raises(ValidationError, match="does not belong to the current task"):
@@ -53,6 +55,7 @@ def test_create_or_load_session_rejects_mismatched_agent():
         "agent_id": "agent-2",
         "status": "queued",
     }
+    session_manager.load_session_by_task.return_value = None
     service = SessionService(session_manager=session_manager)
 
     with pytest.raises(ValidationError, match="belongs to a different agent"):
@@ -60,4 +63,42 @@ def test_create_or_load_session_rejects_mismatched_agent():
             task_id="task-1",
             agent_id="agent-1",
             requested_session_id="session-1",
+        )
+
+
+def test_create_or_load_session_reuses_existing_task_session():
+    session_manager = Mock()
+    session_manager.load_session_by_task.return_value = {
+        "id": "session-1",
+        "task_id": "task-1",
+        "agent_id": "agent-1",
+        "status": "running",
+    }
+    service = SessionService(session_manager=session_manager)
+
+    session = service.create_or_load_session(
+        task_id="task-1",
+        agent_id="agent-1",
+        requested_session_id=None,
+    )
+
+    assert session["id"] == "session-1"
+    session_manager.create_session.assert_not_called()
+
+
+def test_create_or_load_session_rejects_existing_task_session_from_other_agent():
+    session_manager = Mock()
+    session_manager.load_session_by_task.return_value = {
+        "id": "session-1",
+        "task_id": "task-1",
+        "agent_id": "agent-2",
+        "status": "running",
+    }
+    service = SessionService(session_manager=session_manager)
+
+    with pytest.raises(ValidationError, match="different agent"):
+        service.create_or_load_session(
+            task_id="task-1",
+            agent_id="agent-1",
+            requested_session_id=None,
         )

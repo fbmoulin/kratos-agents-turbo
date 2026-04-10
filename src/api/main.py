@@ -214,7 +214,7 @@ def _register_and_dispatch_task(
     except Exception:
         services.staging_service.delete_staged_input(str(prepared["staged_path"]))
         raise
-    services.dispatch_service.dispatch_task(str(prepared["task_id"]))
+    dispatch_result = services.dispatch_service.dispatch_task(str(prepared["task_id"]))
     logger.info(
         "task submitted",
         extra={
@@ -229,6 +229,11 @@ def _register_and_dispatch_task(
         "priority": prepared["priority"],
         "requested_agent_id": prepared["requested_agent_id"],
         "queue": prepared["queue"],
+        "dispatch_summary": {
+            "status": dispatch_result["status"],
+            "attempts": int(dispatch_result.get("attempts") or 0),
+            "last_error": dispatch_result.get("last_error"),
+        },
     }
 
 
@@ -313,12 +318,16 @@ async def submit_task(
         agent_id=agent_id,
         session_id=session_id,
     )
-    return {
+    payload = {
         "task_id": result["task_id"],
         "status": "queued",
         "requested_agent_id": result["requested_agent_id"],
         "queue": result["queue"],
+        "dispatch_summary": result["dispatch_summary"],
     }
+    if result["dispatch_summary"]["status"] != "dispatched":
+        return JSONResponse(status_code=202, content=payload)
+    return payload
 
 
 @app.post("/batches")

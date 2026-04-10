@@ -32,9 +32,14 @@ class DispatchService:
         )
 
     def dispatch_task(self, task_id: str) -> dict[str, Any]:
-        record = db.get_task_dispatch(task_id)
+        record = db.claim_task_dispatch(task_id)
         if record is None:
-            raise ValueError(f"Dispatch record for task '{task_id}' not found")
+            record = db.get_task_dispatch(task_id)
+            if record is None:
+                raise ValueError(f"Dispatch record for task '{task_id}' not found")
+            return record
+        if record["status"] != "dispatching":
+            return record
         return self._dispatch_record(record)
 
     def dispatch_tasks(self, task_ids: list[str]) -> dict[str, int]:
@@ -49,7 +54,7 @@ class DispatchService:
         return {"dispatched": dispatched, "failed": failed}
 
     def reconcile_pending(self, *, limit: int = 100) -> dict[str, int]:
-        records = db.list_task_dispatches(limit=limit)
+        records = db.claim_task_dispatches(limit=limit)
         dispatched = 0
         failed = 0
         for record in records:

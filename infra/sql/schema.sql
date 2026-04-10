@@ -82,7 +82,7 @@ create table if not exists task_logs (
 create table if not exists task_dispatches (
     task_id uuid primary key references tasks(id) on delete cascade,
     queue_name text not null,
-    status text not null check (status in ('pending', 'dispatched', 'failed')),
+    status text not null check (status in ('pending', 'dispatching', 'dispatched', 'failed')),
     payload jsonb not null default '{}'::jsonb,
     attempts integer not null default 0 check (attempts >= 0),
     last_error text,
@@ -101,7 +101,7 @@ create index if not exists idx_tasks_task_type_finished_at on tasks (task_type, 
 create index if not exists idx_batches_created_at on batches (created_at desc);
 create index if not exists idx_batches_task_type_created_at on batches (task_type, created_at desc);
 create unique index if not exists idx_batches_idempotency_key on batches (idempotency_key) where idempotency_key is not null;
-create index if not exists idx_sessions_task_id on sessions (task_id);
+create unique index if not exists idx_sessions_task_id_unique on sessions (task_id);
 create index if not exists idx_sessions_status_created_at on sessions (status, created_at desc);
 create index if not exists idx_task_logs_task_id_created_at on task_logs (task_id, created_at);
 create index if not exists idx_task_logs_session_id_created_at on task_logs (session_id, created_at);

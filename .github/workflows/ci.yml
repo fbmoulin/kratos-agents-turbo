@@ -23,6 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest
           pip install ruff==0.13.1
 
       - name: Prepare local env
@@ -45,3 +46,145 @@ jobs:
 
       - name: Docker build
         run: docker build . -t kratos-agents-turbo-ci
+
+  integration:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      APP_ENV: ci
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_BACKEND_URL: redis://localhost:6379/1
+      REDIS_URL: redis://localhost:6379/0
+      RUN_INTEGRATION_TESTS: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run integration tests
+        run: pytest -q tests/integration
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable
+      SUPABASE_DB_URL: postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_BACKEND_URL: redis://localhost:6379/1
+      REDIS_URL: redis://localhost:6379/0
+      RUN_INTEGRATION_TESTS: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Wait for services and apply migrations
+        run: |
+          python - <<'PY'
+          import os
+          import time
+          from pathlib import Path
+
+          import psycopg
+          import redis
+
+          db_url = os.environ["DATABASE_URL"]
+          redis_url = os.environ["REDIS_URL"]
+
+          last_exc = None
+          for _ in range(30):
+              try:
+                  redis.Redis.from_url(
+                      redis_url,
+                      socket_connect_timeout=5,
+                      socket_timeout=5,
+                  ).ping()
+                  with psycopg.connect(db_url) as conn:
+                      conn.autocommit = True
+                      with conn.cursor() as cursor:
+                          for migration in sorted(
+                              Path("infra/sql/migrations").glob("[0-9][0-9][0-9]*.sql")
+                          ):
+                              cursor.execute(migration.read_text())
+                  break
+              except Exception as exc:
+                  last_exc = exc
+                  time.sleep(2)
+          else:
+              raise last_exc
+
+          print("integration services ready")
+          PY
+
+      - name: Integration tests
+        run: pytest -q tests/integration

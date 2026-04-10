@@ -342,6 +342,22 @@ def get_session(session_id: str, *, conn: Any | None = None) -> dict[str, Any] |
     )
 
 
+def get_session_by_task_id(task_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
+    return _fetchone(
+        "select * from sessions where task_id = %s limit 1",
+        (task_id,),
+        conn=conn,
+    )
+
+
+def get_session_by_task(task_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
+    return _fetchone(
+        "select * from sessions where task_id = %s limit 1",
+        (task_id,),
+        conn=conn,
+    )
+
+
 def insert_task_log(
     *,
     task_id: str,
@@ -456,6 +472,58 @@ def list_task_dispatches(
         limit %s
     """
     return _fetchall(query, (*statuses, limit), conn=conn)
+
+
+def claim_task_dispatch(task_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
+    result = _fetchone(
+        """
+        update task_dispatches
+        set
+            status = 'dispatching',
+            updated_at = %s
+        where task_id = %s
+          and status in ('pending', 'failed')
+        returning *
+        """,
+        (utc_now(), task_id),
+        conn=conn,
+    )
+    if result is not None:
+        return result
+    return get_task_dispatch(task_id, conn=conn)
+
+
+def claim_task_dispatches(
+    *,
+    statuses: tuple[str, ...] = ("pending", "failed"),
+    limit: int = 100,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    if not statuses:
+        return []
+    if conn is None:
+        with transaction() as tx:
+            return claim_task_dispatches(statuses=statuses, limit=limit, conn=tx)
+
+    placeholders = ", ".join(["%s"] * len(statuses))
+    query = f"""
+        with locked as (
+            select task_id
+            from task_dispatches
+            where status in ({placeholders})
+            order by created_at
+            for update skip locked
+            limit %s
+        )
+        update task_dispatches td
+        set
+            status = 'dispatching',
+            updated_at = %s
+        from locked
+        where td.task_id = locked.task_id
+        returning td.*
+    """
+    return _fetchall(query, (*statuses, limit, utc_now()), conn=conn)
 
 
 def update_task_dispatch(
@@ -623,7 +691,7 @@ def list_pending_dispatches(
             t.file_name
         from task_dispatches td
         join tasks t on t.id = td.task_id
-        where td.status in ('pending', 'failed')
+        where td.status in ('pending', 'failed', 'dispatching')
           and td.updated_at <= now() - make_interval(mins => %s)
         order by td.updated_at asc
         limit %s
@@ -682,7 +750,7 @@ def count_pending_dispatches(*, conn: Any | None = None) -> int:
         """
         select count(*)::bigint as total
         from task_dispatches
-        where status in ('pending', 'failed')
+        where status in ('pending', 'failed', 'dispatching')
         """,
         conn=conn,
     )

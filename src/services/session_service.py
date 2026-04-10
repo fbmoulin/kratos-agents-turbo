@@ -23,6 +23,18 @@ class SessionService:
         execution_mode: str = "document",
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        existing_session = self.session_manager.load_session_by_task(task_id)
+        if existing_session is not None:
+            if existing_session["agent_id"] != agent_id:
+                raise ValidationError(
+                    "session_id belongs to a different agent and cannot be rebound"
+                )
+            if requested_session_id and requested_session_id != existing_session["id"]:
+                raise ValidationError(
+                    "session_id does not belong to the current task and cannot be rebound"
+                )
+            return existing_session
+
         if requested_session_id:
             session = self.session_manager.load_session(requested_session_id)
             if session["task_id"] != task_id:
@@ -34,12 +46,17 @@ class SessionService:
                     "session_id belongs to a different agent and cannot be rebound"
                 )
             return session
-        return self.session_manager.create_session(
+        session = self.session_manager.create_session(
             task_id=task_id,
             agent_id=agent_id,
             execution_mode=execution_mode,
             metadata=metadata,
         )
+        if session["agent_id"] != agent_id:
+            raise ValidationError(
+                "task already has a session owned by a different agent"
+            )
+        return session
 
     def mark_running(
         self,

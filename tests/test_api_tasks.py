@@ -28,7 +28,7 @@ def test_post_tasks_accepts_create_only_submission(monkeypatch):
 
     def fake_dispatch_task(task_id):
         calls["dispatch_task"] = task_id
-        return {"status": "dispatched"}
+        return {"status": "dispatched", "attempts": 1, "last_error": None}
 
     monkeypatch.setattr("src.api.main.db.transaction", lambda: nullcontext(object()))
     monkeypatch.setattr("src.api.main.services.task_service.create_task", fake_create_task)
@@ -48,11 +48,48 @@ def test_post_tasks_accepts_create_only_submission(monkeypatch):
     payload = response.json()
     assert payload["status"] == "queued"
     assert payload["queue"] == "legal-despacho"
+    assert payload["dispatch_summary"] == {
+        "status": "dispatched",
+        "attempts": 1,
+        "last_error": None,
+    }
     assert calls["event"]["session_id"] is None
     assert calls["dispatch_record"]["payload"]["requested_session_id"] is None
     assert calls["dispatch_record"]["payload"]["staged_path"] == "/tmp/task-1-sample.pdf"
     assert calls["stage_upload"]["batch_id"] is None
     assert calls["dispatch_task"] == payload["task_id"]
+
+
+def test_post_tasks_returns_accepted_when_dispatch_fails(monkeypatch):
+    def fake_stage_upload(**kwargs):
+        return {"staged_path": "/tmp/task-1-sample.pdf", "size_bytes": 22}
+
+    monkeypatch.setattr("src.api.main.db.transaction", lambda: nullcontext(object()))
+    monkeypatch.setattr(
+        "src.api.main.services.task_service.create_task",
+        lambda **kwargs: kwargs,
+    )
+    monkeypatch.setattr("src.api.main.services.event_store.append", lambda **kwargs: kwargs)
+    monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)
+    monkeypatch.setattr("src.api.main.db.create_task_dispatch", lambda **kwargs: kwargs)
+    monkeypatch.setattr(
+        "src.api.main.services.dispatch_service.dispatch_task",
+        lambda task_id: {"status": "failed", "attempts": 1, "last_error": "broker down"},
+    )
+
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(
+        "/tasks",
+        files={"file": ("sample.pdf", b"%PDF-1.4 test document", "application/pdf")},
+        data={"message": "Emitir minuta", "tipo": "despacho", "priority": "1"},
+    )
+
+    assert response.status_code == 202
+    assert response.json()["dispatch_summary"] == {
+        "status": "failed",
+        "attempts": 1,
+        "last_error": "broker down",
+    }
 
 
 def test_post_tasks_cleans_up_staged_file_when_transaction_fails(monkeypatch):
