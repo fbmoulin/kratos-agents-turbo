@@ -1,4 +1,5 @@
 create extension if not exists pgcrypto;
+create schema if not exists internal;
 
 create table if not exists sessions (
     id uuid primary key default gen_random_uuid(),
@@ -108,3 +109,11 @@ create index if not exists idx_task_logs_session_id_created_at on task_logs (ses
 create index if not exists idx_task_logs_event_type on task_logs (event_type);
 create index if not exists idx_task_dispatches_status_created_at on task_dispatches (status, created_at);
 create index if not exists idx_task_dispatches_status_updated_at on task_dispatches (status, updated_at asc);
+
+create table if not exists internal.platform_migrations (
+    version text primary key check (version ~ '^[0-9]{3}$'),
+    filename text not null unique,
+    checksum_sha256 text not null,
+    source text not null default 'repo',
+    applied_at timestamptz not null default now()
+);

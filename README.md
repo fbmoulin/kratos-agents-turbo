@@ -244,8 +244,9 @@ The registry now fails early when the catalog is invalid, including:
 
 1. Copy `.env.example` to `.env`
 2. Set `DATABASE_URL` or `SUPABASE_DB_URL`
-3. Apply migrations from [`infra/sql/migrations/`](./infra/sql/migrations/)
-4. Keep [`infra/sql/schema.sql`](./infra/sql/schema.sql) as the consolidated snapshot
+3. Apply repo migrations with `python scripts/apply_repo_migrations.py`
+4. Verify rollout with `python scripts/verify_repo_migrations.py`
+5. Keep [`infra/sql/schema.sql`](./infra/sql/schema.sql) as the consolidated snapshot
 
 `SUPABASE_URL` and `SUPABASE_KEY` can remain available for future platform integrations, but persistence now depends on direct PostgreSQL connectivity.
 
@@ -339,6 +340,8 @@ Current automated coverage includes:
 - batch ingest streams uploads to staging and enforces `MAX_BATCH_BYTES`
 - persistence uses direct PostgreSQL connections with pooling instead of the Supabase REST client
 - Supabase MCP can now be used alongside the direct SQL runtime for inspection, queries, and operational validation
+- repo migration rollout is tracked in `internal.platform_migrations`
+- `supabase_migrations.schema_migrations` may still exist, but it is treated as auxiliary platform metadata for this project
 - batch creation is transactional and supports basic idempotent reuse via `idempotency_key`
 - task dispatch uses a PostgreSQL outbox and can be retried via `POST /dispatch/reconcile`
 - queues are split by task type for the MVP and can run with dedicated workers:

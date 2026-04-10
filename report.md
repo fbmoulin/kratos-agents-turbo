@@ -65,6 +65,7 @@ Delivered in the current slice:
 - specific agent profiles for `despacho` and `decisao`
 - local staging to avoid sending full PDFs through Redis
 - initial SQL migrations under `infra/sql/migrations`
+- repo-owned migration ledger and apply/verify scripts
 - task dispatch outbox and reconcile path for broker recovery
 - runtime fixes for UUID-safe dispatch and JSON payload serialization
 
@@ -124,6 +125,7 @@ Priority backlog:
 - keep `.env.example` aligned with the current Supabase connection model and compose host ports
 - update `AGENTS.md` whenever repo-specific working rules change
 - keep local runbooks aligned with retry/reconcile/metrics behavior
+- keep `internal.platform_migrations` aligned with `infra/sql/migrations`
 
 ## Out of Scope for the Current Roadmap Slice
 
