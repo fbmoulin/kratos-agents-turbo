@@ -18,7 +18,8 @@ The repository is no longer a queue-backed bootstrap. It now includes:
 - service layer for task/session coordination
 - append-only event log
 - HTTP API, worker runtime, and MCP-like skill server
-- SQL schema for tasks, sessions, and task logs
+- direct PostgreSQL persistence against Supabase-hosted Postgres
+- SQL schema and versioned migrations
 - minimal automated validation suite
 
 The current MVP focus is operational batch throughput for judicial drafts:
@@ -98,7 +99,8 @@ Core design principles:
 
 1. receives multiple PDFs with one `task_type` and one instruction message
 2. validates cardinality against `MAX_BATCH_FILES`
-3. creates one `batch` record
+3. optionally reuses an existing batch when `idempotency_key` matches
+4. creates one `batch` record inside a SQL transaction
 4. creates one `task` per file with `batch_id` and `batch_item_index`
 5. appends one `TASK_CREATED` per task
 6. stages each file to shared local storage
@@ -148,13 +150,14 @@ Important public contract:
 
 - `POST /tasks` is create-only
 - `POST /batches` is create-only
+- `POST /batches` accepts optional `idempotency_key`
 - public resume/rebind is not exposed
 - PDF is the only supported document input in the current phase
 - all files in one batch share the same `task_type`
 
 ## 7. Data Model
 
-Persistence is implemented on Supabase/PostgreSQL.
+Persistence is implemented on Supabase-hosted PostgreSQL through direct SQL connections.
 
 ### `tasks`
 
@@ -174,6 +177,7 @@ Stores:
 - submission-level metadata
 - batch cardinality
 - requested agent and requested priority
+- optional `idempotency_key`
 - aggregate status derivation inputs
 
 ### `sessions`
@@ -196,6 +200,7 @@ Stores:
 Schema:
 
 - [`infra/sql/schema.sql`](./infra/sql/schema.sql)
+- [`infra/sql/migrations/001_platform_core.sql`](./infra/sql/migrations/001_platform_core.sql)
 
 ## 8. Agent Catalog
 
@@ -228,14 +233,16 @@ The registry now fails early when the catalog is invalid, including:
 
 - Docker
 - Docker Compose
-- Supabase project with schema access
+- Supabase project with PostgreSQL access
 
 ### 9.2 Configuration
 
 1. Copy `.env.example` to `.env`
-2. Set `SUPABASE_URL`
-3. Set `SUPABASE_KEY`
-4. Apply [`infra/sql/schema.sql`](./infra/sql/schema.sql)
+2. Set `DATABASE_URL` or `SUPABASE_DB_URL`
+3. Apply migrations from [`infra/sql/migrations/`](./infra/sql/migrations/)
+4. Keep [`infra/sql/schema.sql`](./infra/sql/schema.sql) as the consolidated snapshot
+
+`SUPABASE_URL` and `SUPABASE_KEY` can remain available for future platform integrations, but persistence now depends on direct PostgreSQL connectivity.
 
 ### 9.3 Boot
 
@@ -273,6 +280,8 @@ Current automated coverage includes:
 ## 10. Operational Notes
 
 - uploaded documents are staged locally and the worker receives a file reference
+- persistence uses direct PostgreSQL connections with pooling instead of the Supabase REST client
+- batch creation is transactional and supports basic idempotent reuse via `idempotency_key`
 - queues are split by task type for the MVP:
   - `despacho` -> `CELERY_DESPACHO_QUEUE`
   - `decisao` -> `CELERY_DECISAO_QUEUE`
@@ -293,6 +302,8 @@ Current automated coverage includes:
 - service-layer orchestration
 - create-only task submission
 - create-only batch submission
+- direct PostgreSQL persistence with connection pooling
+- basic batch idempotency for repeated submissions
 - ordered task event inspection endpoint
 - queue routing by `task_type`
 - local staging to reduce broker pressure
@@ -300,9 +311,8 @@ Current automated coverage includes:
 
 ### Next
 
-- formal database migrations
+- stronger batch retry policy beyond the current idempotency baseline
 - stronger task/session sync guarantees across persistence failures
-- batch-level retry and idempotency policy
 - object storage replacement for local staged inputs in production
 - richer validator behavior for multiple agents and execution modes
 - stronger event replayability and audit views

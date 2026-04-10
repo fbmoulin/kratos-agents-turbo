@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
@@ -25,6 +26,7 @@ def test_post_tasks_accepts_create_only_submission(monkeypatch):
     def fake_apply_async(**kwargs):
         calls["apply_async"] = kwargs
 
+    monkeypatch.setattr("src.api.main.db.transaction", lambda: nullcontext(object()))
     monkeypatch.setattr("src.api.main.services.task_service.create_task", fake_create_task)
     monkeypatch.setattr("src.api.main.services.event_store.append", fake_append)
     monkeypatch.setattr("src.api.main.services.staging_service.stage_upload", fake_stage_upload)

@@ -13,7 +13,7 @@ The repository currently includes:
 - API support for batch submission, inspection, and batch cancellation
 - Celery-based runtime with Redis
 - staged local input handoff between API and worker
-- Supabase/Postgres persistence schema
+- direct PostgreSQL persistence against Supabase-hosted Postgres
 - minimal automated test suite
 
 ## Phase Status
@@ -50,10 +50,13 @@ Status: in progress
 Delivered in the current slice:
 
 - `batches` persistence model
+- direct PostgreSQL persistence with connection pooling
 - batch submission endpoint and aggregate batch inspection
+- basic batch idempotency with SQL-backed reuse
 - queue routing by `task_type`
 - specific agent profiles for `despacho` and `decisao`
 - local staging to avoid sending full PDFs through Redis
+- initial SQL migrations under `infra/sql/migrations`
 
 Immediate MVP target:
 
@@ -67,22 +70,20 @@ Status: planned
 
 Priority backlog:
 
-1. database migration tooling
-2. batch idempotency and controlled retry semantics
-3. stronger persistence failure handling and recovery semantics
-4. object storage for large document payloads in production
-5. richer operational audit views and event filtering
-6. broader task/session integration tests against real persistence
-7. metrics/tracing beyond basic structured logs
+1. controlled retry semantics on top of the current idempotency baseline
+2. stronger persistence failure handling and recovery semantics
+3. object storage for large document payloads in production
+4. richer operational audit views and event filtering
+5. broader task/session integration tests against real persistence
+6. metrics/tracing beyond basic structured logs
 
 ## TODOs
 
 ### Runtime and Reliability
 
-- add integration validation for real Supabase-backed task/session/event writes
+- add integration validation for real Supabase Postgres-backed task/session/event writes
 - replace local staging with production-grade object storage when deployment hardening starts
 - review retry policy and failure semantics for batch items
-- add idempotency keys for repeated batch submission
 - review per-queue worker concurrency for despacho vs decisao
 
 ### Observability

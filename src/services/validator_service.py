@@ -27,6 +27,7 @@ class ValidatedBatchSubmission:
     task_type: str
     priority: int
     requested_agent_id: str | None
+    idempotency_key: str | None
     total_files: int
 
 
@@ -93,6 +94,7 @@ class ValidatorService:
         task_type: str | None,
         priority: int | None,
         requested_agent_id: str | None,
+        idempotency_key: str | None,
     ) -> ValidatedBatchSubmission:
         if total_files <= 0:
             raise ValidationError("Batch submission requires at least one file")
@@ -107,6 +109,7 @@ class ValidatorService:
             task_type=clean_task_type,
             priority=self._clean_priority(priority, clean_task_type),
             requested_agent_id=requested_agent_id.strip() if requested_agent_id else None,
+            idempotency_key=self._clean_idempotency_key(idempotency_key),
             total_files=total_files,
         )
 
@@ -144,3 +147,18 @@ class ValidatorService:
         if clean_priority < 0 or clean_priority > 10:
             raise ValidationError("priority must be between 0 and 10")
         return clean_priority
+
+    @staticmethod
+    def _clean_idempotency_key(idempotency_key: str | None) -> str | None:
+        if idempotency_key is None:
+            return None
+        clean_value = idempotency_key.strip()
+        if not clean_value:
+            return None
+        if len(clean_value) > 128:
+            raise ValidationError("idempotency_key exceeds 128 characters")
+        if not re.fullmatch(r"[A-Za-z0-9._:-]+", clean_value):
+            raise ValidationError(
+                "idempotency_key may only contain letters, numbers, dot, underscore, colon and hyphen"
+            )
+        return clean_value

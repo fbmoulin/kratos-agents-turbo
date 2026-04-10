@@ -54,6 +54,9 @@ class Settings:
     default_decisao_priority: int
     default_sentenca_priority: int
     local_storage_path: Path
+    database_url: str | None
+    database_min_pool_size: int
+    database_max_pool_size: int
     supabase_url: str | None
     supabase_key: str | None
     catalog_path: Path
@@ -125,6 +128,9 @@ def get_settings() -> Settings:
             )
             or (base_dir / "runtime" / "uploads")
         ),
+        database_url=_get_env("DATABASE_URL") or _get_env("SUPABASE_DB_URL"),
+        database_min_pool_size=_get_int("DATABASE_MIN_POOL_SIZE", 1),
+        database_max_pool_size=_get_int("DATABASE_MAX_POOL_SIZE", 5),
         supabase_url=_get_env("SUPABASE_URL"),
         supabase_key=_get_env("SUPABASE_KEY"),
         catalog_path=base_dir / "src" / "agent" / "catalog" / "agents.yaml",

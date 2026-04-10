@@ -9,6 +9,7 @@ from celery.result import AsyncResult
 from fastapi import FastAPI, File, Form, Query, UploadFile
 from fastapi.responses import JSONResponse
 
+from src import db
 from src.core import (
     ApplicationError,
     InvalidStateTransition,
@@ -74,7 +75,7 @@ async def health() -> dict[str, str]:
     return settings.health_payload()
 
 
-def _register_and_dispatch_task(
+def _prepare_task_submission(
     *,
     file_bytes: bytes,
     file_name: str | None,
@@ -113,58 +114,107 @@ def _register_and_dispatch_task(
     if batch_id:
         input_metadata["batch_item_index"] = batch_item_index
         input_metadata["batch_total_tasks"] = batch_total_tasks
+    return {
+        "task_id": task_id,
+        "file_name": validated.file_name,
+        "task_type": validated.task_type,
+        "message": validated.message,
+        "priority": validated.priority,
+        "requested_agent_id": validated.requested_agent_id,
+        "requested_session_id": validated.requested_session_id,
+        "content_type": validated.content_type,
+        "staged_path": staged["staged_path"],
+        "input_metadata": input_metadata,
+        "queue": settings.queue_for_task_type(validated.task_type),
+    }
 
-    services.task_service.create_task(
-        task_id=task_id,
-        file_name=validated.file_name,
-        task_type=validated.task_type,
-        message=validated.message,
-        priority=validated.priority,
-        requested_agent_id=validated.requested_agent_id,
+
+def _register_and_dispatch_task(
+    *,
+    file_bytes: bytes,
+    file_name: str | None,
+    content_type: str | None,
+    message: str | None,
+    task_type: str | None,
+    priority: int | None,
+    agent_id: str | None,
+    session_id: str | None,
+    batch_id: str | None = None,
+    batch_item_index: int | None = None,
+    batch_total_tasks: int | None = None,
+) -> dict[str, object]:
+    prepared = _prepare_task_submission(
+        file_bytes=file_bytes,
+        file_name=file_name,
+        content_type=content_type,
+        message=message,
+        task_type=task_type,
+        priority=priority,
+        agent_id=agent_id,
+        session_id=session_id,
         batch_id=batch_id,
-        input_metadata=input_metadata,
+        batch_item_index=batch_item_index,
+        batch_total_tasks=batch_total_tasks,
     )
-    services.event_store.append(
-        task_id=task_id,
-        session_id=None,
-        event_type=EventType.TASK_CREATED,
-        status="queued",
-        message="Task registered and queued",
-        payload={
-            "batch_id": batch_id,
-            "batch_item_index": batch_item_index,
-            "file_name": validated.file_name,
-            "task_type": validated.task_type,
-            "priority": validated.priority,
-            "requested_agent_id": validated.requested_agent_id,
-        },
-    )
+
+    with db.transaction() as conn:
+        services.task_service.create_task(
+            task_id=str(prepared["task_id"]),
+            file_name=str(prepared["file_name"]),
+            task_type=str(prepared["task_type"]),
+            message=str(prepared["message"]),
+            priority=int(prepared["priority"]),
+            requested_agent_id=prepared["requested_agent_id"],
+            batch_id=batch_id,
+            input_metadata=dict(prepared["input_metadata"]),
+            conn=conn,
+        )
+        services.event_store.append(
+            task_id=str(prepared["task_id"]),
+            session_id=None,
+            event_type=EventType.TASK_CREATED,
+            status="queued",
+            message="Task registered and queued",
+            payload={
+                "batch_id": batch_id,
+                "batch_item_index": batch_item_index,
+                "file_name": prepared["file_name"],
+                "task_type": prepared["task_type"],
+                "priority": prepared["priority"],
+                "requested_agent_id": prepared["requested_agent_id"],
+            },
+            conn=conn,
+        )
     process_document_task.apply_async(
         kwargs={
-            "task_id": task_id,
-            "staged_path": staged["staged_path"],
-            "file_name": validated.file_name,
-            "message": validated.message,
-            "task_type": validated.task_type,
-            "priority": validated.priority,
-            "requested_agent_id": validated.requested_agent_id,
-            "requested_session_id": validated.requested_session_id,
-            "content_type": validated.content_type,
+            "task_id": prepared["task_id"],
+            "staged_path": prepared["staged_path"],
+            "file_name": prepared["file_name"],
+            "message": prepared["message"],
+            "task_type": prepared["task_type"],
+            "priority": prepared["priority"],
+            "requested_agent_id": prepared["requested_agent_id"],
+            "requested_session_id": prepared["requested_session_id"],
+            "content_type": prepared["content_type"],
             "batch_id": batch_id,
         },
-        task_id=task_id,
-        queue=settings.queue_for_task_type(validated.task_type),
+        task_id=str(prepared["task_id"]),
+        queue=str(prepared["queue"]),
     )
     logger.info(
         "task submitted",
-        extra={"task_id": task_id, "session_id": "-", "batch_id": batch_id or "-"},
+        extra={
+            "task_id": str(prepared["task_id"]),
+            "session_id": "-",
+            "batch_id": batch_id or "-",
+        },
     )
     return {
-        "task_id": task_id,
-        "task_type": validated.task_type,
-        "priority": validated.priority,
-        "requested_agent_id": validated.requested_agent_id,
-        "queue": settings.queue_for_task_type(validated.task_type),
+        "task_id": prepared["task_id"],
+        "task_type": prepared["task_type"],
+        "priority": prepared["priority"],
+        "requested_agent_id": prepared["requested_agent_id"],
+        "queue": prepared["queue"],
     }
 
 
@@ -265,6 +315,7 @@ async def submit_batch(
     task_type: Annotated[str | None, Form()] = None,
     priority: Annotated[int | None, Form()] = None,
     agent_id: Annotated[str | None, Form()] = None,
+    idempotency_key: Annotated[str | None, Form()] = None,
 ) -> dict[str, object]:
     batch_config = services.validator_service.validate_batch_submission(
         total_files=len(files),
@@ -272,49 +323,126 @@ async def submit_batch(
         task_type=task_type or tipo,
         priority=priority,
         requested_agent_id=agent_id,
+        idempotency_key=idempotency_key,
     )
+    if batch_config.idempotency_key:
+        existing_batch = services.batch_service.get_batch_by_idempotency_key(
+            batch_config.idempotency_key
+        )
+        if existing_batch is not None:
+            existing_summary = services.batch_service.get_batch_with_tasks(existing_batch["id"])
+            return {
+                "batch_id": existing_summary["id"],
+                "status": existing_summary["status"],
+                "task_type": existing_summary["task_type"],
+                "priority": existing_summary["priority"],
+                "total_tasks": existing_summary["total_tasks"],
+                "queue": settings.queue_for_task_type(existing_summary["task_type"]),
+                "task_ids": [task["id"] for task in existing_summary.get("tasks", [])],
+                "idempotency_reused": True,
+            }
+
     batch_id = str(uuid.uuid4())
-    services.batch_service.create_batch(
+    task_items: list[dict[str, object]] = []
+    for index, upload in enumerate(files, start=1):
+        file_bytes = await upload.read()
+        validated = services.validator_service.validate_submission(
+            file_bytes=file_bytes,
+            file_name=upload.filename,
+            content_type=upload.content_type,
+            message=batch_config.message,
+            task_type=batch_config.task_type,
+            priority=batch_config.priority,
+            requested_agent_id=batch_config.requested_agent_id,
+            requested_session_id=None,
+        )
+        task_id = str(uuid.uuid4())
+        staged = services.staging_service.stage_upload(
+            task_id=task_id,
+            file_name=validated.file_name,
+            file_bytes=file_bytes,
+            batch_id=batch_id,
+        )
+        task_items.append(
+            {
+                "task_id": task_id,
+                "file_name": validated.file_name,
+                "task_type": validated.task_type,
+                "message": validated.message,
+                "priority": validated.priority,
+                "requested_agent_id": validated.requested_agent_id,
+                "batch_id": batch_id,
+                "input_metadata": {
+                    "content_type": validated.content_type,
+                    "staged_path": staged["staged_path"],
+                    "staged_size_bytes": staged["size_bytes"],
+                    "batch_item_index": index,
+                    "batch_total_tasks": batch_config.total_files,
+                },
+            }
+        )
+
+    batch_submission = services.batch_service.create_batch_submission(
         batch_id=batch_id,
         task_type=batch_config.task_type,
         message=batch_config.message,
         requested_agent_id=batch_config.requested_agent_id,
         priority=batch_config.priority,
-        total_tasks=batch_config.total_files,
-        input_metadata={"submission_mode": "batch"},
+        idempotency_key=batch_config.idempotency_key,
+        task_items=task_items,
     )
+    if not batch_submission["created"]:
+        existing_summary = services.batch_service.get_batch_with_tasks(batch_submission["batch"]["id"])
+        return {
+            "batch_id": existing_summary["id"],
+            "status": existing_summary["status"],
+            "task_type": existing_summary["task_type"],
+            "priority": existing_summary["priority"],
+            "total_tasks": existing_summary["total_tasks"],
+            "queue": settings.queue_for_task_type(existing_summary["task_type"]),
+            "task_ids": [task["id"] for task in existing_summary.get("tasks", [])],
+            "idempotency_reused": True,
+        }
 
     submitted_tasks: list[dict[str, object]] = []
-    for index, upload in enumerate(files, start=1):
-        file_bytes = await upload.read()
+    for task in batch_submission["tasks"]:
+        task_input = task.get("input_metadata", {})
+        process_document_task.apply_async(
+            kwargs={
+                "task_id": task["id"],
+                "staged_path": task_input.get("staged_path"),
+                "file_name": task["file_name"],
+                "message": task["message"],
+                "task_type": task["task_type"],
+                "priority": task["priority"],
+                "requested_agent_id": task.get("requested_agent_id"),
+                "requested_session_id": None,
+                "content_type": task_input.get("content_type", "application/pdf"),
+                "batch_id": batch_submission["batch"]["id"],
+            },
+            task_id=task["id"],
+            queue=settings.queue_for_task_type(task["task_type"]),
+        )
         submitted_tasks.append(
-            _register_and_dispatch_task(
-                file_bytes=file_bytes,
-                file_name=upload.filename,
-                content_type=upload.content_type,
-                message=batch_config.message,
-                task_type=batch_config.task_type,
-                priority=batch_config.priority,
-                agent_id=batch_config.requested_agent_id,
-                session_id=None,
-                batch_id=batch_id,
-                batch_item_index=index,
-                batch_total_tasks=batch_config.total_files,
-            )
+            {
+                "task_id": task["id"],
+                "queue": settings.queue_for_task_type(task["task_type"]),
+            }
         )
 
     logger.info(
         "batch submitted",
-        extra={"task_id": "-", "session_id": "-", "batch_id": batch_id},
+        extra={"task_id": "-", "session_id": "-", "batch_id": batch_submission["batch"]["id"]},
     )
     return {
-        "batch_id": batch_id,
+        "batch_id": batch_submission["batch"]["id"],
         "status": "queued",
         "task_type": batch_config.task_type,
         "priority": batch_config.priority,
         "total_tasks": batch_config.total_files,
         "queue": settings.queue_for_task_type(batch_config.task_type),
         "task_ids": [task["task_id"] for task in submitted_tasks],
+        "idempotency_reused": False,
     }
 
 

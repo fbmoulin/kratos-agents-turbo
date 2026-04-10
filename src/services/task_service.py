@@ -27,6 +27,7 @@ class TaskService:
         batch_id: str | None = None,
         execution_mode: str = "document",
         input_metadata: dict[str, Any] | None = None,
+        conn: Any | None = None,
     ) -> dict[str, Any]:
         return db.create_task(
             task_id=task_id,
@@ -40,6 +41,7 @@ class TaskService:
             session_id=None,
             execution_mode=execution_mode,
             input_metadata=input_metadata,
+            conn=conn,
         )
 
     def get_task(self, task_id: str) -> dict[str, Any]:
@@ -53,8 +55,9 @@ class TaskService:
         status: str | None = None,
         *,
         batch_id: str | None = None,
+        conn: Any | None = None,
     ) -> list[dict[str, Any]]:
-        return db.list_tasks(status=status, batch_id=batch_id)
+        return db.list_tasks(status=status, batch_id=batch_id, conn=conn)
 
     def list_events(self, task_id: str) -> list[dict[str, Any]]:
         self.get_task(task_id)

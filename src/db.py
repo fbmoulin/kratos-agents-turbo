@@ -1,31 +1,87 @@
-"""Persistence helpers backed by Supabase/PostgreSQL."""
+"""Persistence helpers backed by direct PostgreSQL connections."""
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Iterator
 
-from supabase import Client, create_client
+from psycopg import sql
+from psycopg.rows import dict_row
+from psycopg.types.json import Json
+from psycopg_pool import ConnectionPool
 
 from src.core import PersistenceError, get_settings
 
-_client: Client | None = None
+_pool: ConnectionPool | None = None
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _get_client() -> Client:
-    global _client
-    if _client is None:
+def _get_pool() -> ConnectionPool:
+    global _pool
+    if _pool is None:
         settings = get_settings()
-        if not settings.supabase_url or not settings.supabase_key:
+        if not settings.database_url:
             raise PersistenceError(
-                "SUPABASE_URL and SUPABASE_KEY must be configured before using persistence"
+                "DATABASE_URL or SUPABASE_DB_URL must be configured before using persistence"
             )
-        _client = create_client(settings.supabase_url, settings.supabase_key)
-    return _client
+        _pool = ConnectionPool(
+            conninfo=settings.database_url,
+            min_size=settings.database_min_pool_size,
+            max_size=settings.database_max_pool_size,
+            kwargs={
+                "autocommit": True,
+                "row_factory": dict_row,
+            },
+            open=True,
+        )
+    return _pool
+
+
+@contextmanager
+def transaction() -> Iterator[Any]:
+    with _get_pool().connection() as conn:
+        with conn.transaction():
+            yield conn
+
+
+def _json(value: dict[str, Any] | None) -> Json:
+    return Json(value or {})
+
+
+def _fetchone(
+    query: str | sql.Composed,
+    params: tuple[Any, ...] = (),
+    *,
+    conn: Any | None = None,
+) -> dict[str, Any] | None:
+    if conn is not None:
+        with conn.cursor() as cursor:
+            cursor.execute(query, params)
+            return cursor.fetchone()
+    with _get_pool().connection() as pooled:
+        with pooled.cursor() as cursor:
+            cursor.execute(query, params)
+            return cursor.fetchone()
+
+
+def _fetchall(
+    query: str | sql.Composed,
+    params: tuple[Any, ...] = (),
+    *,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    if conn is not None:
+        with conn.cursor() as cursor:
+            cursor.execute(query, params)
+            return list(cursor.fetchall() or [])
+    with _get_pool().connection() as pooled:
+        with pooled.cursor() as cursor:
+            cursor.execute(query, params)
+            return list(cursor.fetchall() or [])
 
 
 def create_task(
@@ -42,54 +98,92 @@ def create_task(
     session_id: str | None = None,
     execution_mode: str = "document",
     input_metadata: dict[str, Any] | None = None,
+    conn: Any | None = None,
 ) -> dict[str, Any]:
-    payload = {
-        "id": task_id,
-        "batch_id": batch_id,
-        "session_id": session_id,
-        "requested_agent_id": requested_agent_id,
-        "agent_id": agent_id,
-        "file_name": file_name,
-        "task_type": task_type,
-        "status": status,
-        "message": message,
-        "priority": priority,
-        "execution_mode": execution_mode,
-        "input_metadata": input_metadata or {},
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-    }
-    result = _get_client().table("tasks").insert(payload).execute()
-    return result.data[0] if result.data else payload
+    query = """
+        insert into tasks (
+            id,
+            batch_id,
+            session_id,
+            requested_agent_id,
+            agent_id,
+            file_name,
+            task_type,
+            status,
+            message,
+            priority,
+            execution_mode,
+            input_metadata,
+            created_at,
+            updated_at
+        )
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        returning *
+    """
+    return _fetchone(
+        query,
+        (
+            task_id,
+            batch_id,
+            session_id,
+            requested_agent_id,
+            agent_id,
+            file_name,
+            task_type,
+            status,
+            message,
+            priority,
+            execution_mode,
+            _json(input_metadata),
+            utc_now(),
+            utc_now(),
+        ),
+        conn=conn,
+    ) or {}
 
 
-def update_task(task_id: str, **fields: Any) -> dict[str, Any]:
+def update_task(task_id: str, *, conn: Any | None = None, **fields: Any) -> dict[str, Any]:
     update_data = {**fields, "updated_at": utc_now()}
-    result = _get_client().table("tasks").update(update_data).eq("id", task_id).execute()
-    data = result.data or []
-    if not data:
+    assignments = [
+        sql.SQL("{} = %s").format(sql.Identifier(column))
+        for column in update_data.keys()
+    ]
+    values = [
+        _json(value) if column in {"input_metadata", "output_metadata"} else value
+        for column, value in update_data.items()
+    ]
+    query = sql.SQL("update tasks set {} where id = %s returning *").format(
+        sql.SQL(", ").join(assignments)
+    )
+    result = _fetchone(query, (*values, task_id), conn=conn)
+    if result is None:
         raise PersistenceError(f"Task '{task_id}' could not be updated")
-    return data[0]
+    return result
 
 
-def get_task(task_id: str) -> dict[str, Any] | None:
-    result = _get_client().table("tasks").select("*").eq("id", task_id).limit(1).execute()
-    data = result.data or []
-    return data[0] if data else None
+def get_task(task_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
+    return _fetchone("select * from tasks where id = %s limit 1", (task_id,), conn=conn)
 
 
 def list_tasks(
     status: str | None = None,
     *,
     batch_id: str | None = None,
+    conn: Any | None = None,
 ) -> list[dict[str, Any]]:
-    query = _get_client().table("tasks").select("*").order("created_at", desc=True)
+    conditions: list[str] = []
+    params: list[Any] = []
     if status:
-        query = query.eq("status", status)
+        conditions.append("status = %s")
+        params.append(status)
     if batch_id:
-        query = query.eq("batch_id", batch_id)
-    result = query.execute()
-    return list(result.data or [])
+        conditions.append("batch_id = %s")
+        params.append(batch_id)
+    query = "select * from tasks"
+    if conditions:
+        query += " where " + " and ".join(conditions)
+    query += " order by created_at desc"
+    return _fetchall(query, tuple(params), conn=conn)
 
 
 def create_batch(
@@ -101,31 +195,61 @@ def create_batch(
     priority: int,
     total_tasks: int,
     input_metadata: dict[str, Any] | None = None,
+    idempotency_key: str | None = None,
+    conn: Any | None = None,
 ) -> dict[str, Any]:
-    payload = {
-        "id": batch_id,
-        "task_type": task_type,
-        "message": message,
-        "requested_agent_id": requested_agent_id,
-        "priority": priority,
-        "total_tasks": total_tasks,
-        "input_metadata": input_metadata or {},
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-    }
-    result = _get_client().table("batches").insert(payload).execute()
-    return result.data[0] if result.data else payload
+    query = """
+        insert into batches (
+            id,
+            task_type,
+            message,
+            requested_agent_id,
+            priority,
+            total_tasks,
+            idempotency_key,
+            input_metadata,
+            created_at,
+            updated_at
+        )
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        returning *
+    """
+    return _fetchone(
+        query,
+        (
+            batch_id,
+            task_type,
+            message,
+            requested_agent_id,
+            priority,
+            total_tasks,
+            idempotency_key,
+            _json(input_metadata),
+            utc_now(),
+            utc_now(),
+        ),
+        conn=conn,
+    ) or {}
 
 
-def get_batch(batch_id: str) -> dict[str, Any] | None:
-    result = _get_client().table("batches").select("*").eq("id", batch_id).limit(1).execute()
-    data = result.data or []
-    return data[0] if data else None
+def get_batch(batch_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
+    return _fetchone("select * from batches where id = %s limit 1", (batch_id,), conn=conn)
 
 
-def list_batches() -> list[dict[str, Any]]:
-    result = _get_client().table("batches").select("*").order("created_at", desc=True).execute()
-    return list(result.data or [])
+def get_batch_by_idempotency_key(
+    idempotency_key: str,
+    *,
+    conn: Any | None = None,
+) -> dict[str, Any] | None:
+    return _fetchone(
+        "select * from batches where idempotency_key = %s limit 1",
+        (idempotency_key,),
+        conn=conn,
+    )
+
+
+def list_batches(*, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall("select * from batches order by created_at desc", conn=conn)
 
 
 def create_session(
@@ -138,36 +262,67 @@ def create_session(
     metadata: dict[str, Any] | None = None,
     progress: int = 0,
     current_step: str | None = None,
+    conn: Any | None = None,
 ) -> dict[str, Any]:
-    payload = {
-        "id": session_id,
-        "task_id": task_id,
-        "agent_id": agent_id,
-        "status": status,
-        "execution_mode": execution_mode,
-        "metadata": metadata or {},
-        "progress": progress,
-        "current_step": current_step,
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-    }
-    result = _get_client().table("sessions").insert(payload).execute()
-    return result.data[0] if result.data else payload
+    query = """
+        insert into sessions (
+            id,
+            task_id,
+            agent_id,
+            status,
+            execution_mode,
+            metadata,
+            progress,
+            current_step,
+            created_at,
+            updated_at
+        )
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        returning *
+    """
+    return _fetchone(
+        query,
+        (
+            session_id,
+            task_id,
+            agent_id,
+            status,
+            execution_mode,
+            _json(metadata),
+            progress,
+            current_step,
+            utc_now(),
+            utc_now(),
+        ),
+        conn=conn,
+    ) or {}
 
 
-def update_session(session_id: str, **fields: Any) -> dict[str, Any]:
+def update_session(session_id: str, *, conn: Any | None = None, **fields: Any) -> dict[str, Any]:
     update_data = {**fields, "updated_at": utc_now()}
-    result = _get_client().table("sessions").update(update_data).eq("id", session_id).execute()
-    data = result.data or []
-    if not data:
+    assignments = [
+        sql.SQL("{} = %s").format(sql.Identifier(column))
+        for column in update_data.keys()
+    ]
+    values = [
+        _json(value) if column == "metadata" else value
+        for column, value in update_data.items()
+    ]
+    query = sql.SQL("update sessions set {} where id = %s returning *").format(
+        sql.SQL(", ").join(assignments)
+    )
+    result = _fetchone(query, (*values, session_id), conn=conn)
+    if result is None:
         raise PersistenceError(f"Session '{session_id}' could not be updated")
-    return data[0]
+    return result
 
 
-def get_session(session_id: str) -> dict[str, Any] | None:
-    result = _get_client().table("sessions").select("*").eq("id", session_id).limit(1).execute()
-    data = result.data or []
-    return data[0] if data else None
+def get_session(session_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
+    return _fetchone(
+        "select * from sessions where id = %s limit 1",
+        (session_id,),
+        conn=conn,
+    )
 
 
 def insert_task_log(
@@ -179,28 +334,41 @@ def insert_task_log(
     step: str | None = None,
     message: str | None = None,
     payload: dict[str, Any] | None = None,
+    conn: Any | None = None,
 ) -> dict[str, Any]:
-    record = {
-        "task_id": task_id,
-        "session_id": session_id,
-        "event_type": event_type,
-        "status": status,
-        "step": step,
-        "message": message,
-        "payload": payload or {},
-        "created_at": utc_now(),
-    }
-    result = _get_client().table("task_logs").insert(record).execute()
-    return result.data[0] if result.data else record
+    query = """
+        insert into task_logs (
+            task_id,
+            session_id,
+            event_type,
+            status,
+            step,
+            message,
+            payload,
+            created_at
+        )
+        values (%s, %s, %s, %s, %s, %s, %s, %s)
+        returning *
+    """
+    return _fetchone(
+        query,
+        (
+            task_id,
+            session_id,
+            event_type,
+            status,
+            step,
+            message,
+            _json(payload),
+            utc_now(),
+        ),
+        conn=conn,
+    ) or {}
 
 
-def list_task_logs(task_id: str) -> list[dict[str, Any]]:
-    result = (
-        _get_client()
-        .table("task_logs")
-        .select("*")
-        .eq("task_id", task_id)
-        .order("created_at")
-        .execute()
+def list_task_logs(task_id: str, *, conn: Any | None = None) -> list[dict[str, Any]]:
+    return _fetchall(
+        "select * from task_logs where task_id = %s order by created_at",
+        (task_id,),
+        conn=conn,
     )
-    return list(result.data or [])

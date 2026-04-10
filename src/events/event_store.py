@@ -31,6 +31,7 @@ class EventStore:
         step: str | None = None,
         message: str | None = None,
         payload: dict[str, Any] | None = None,
+        conn: Any | None = None,
     ) -> dict[str, Any]:
         return db.insert_task_log(
             task_id=task_id,
@@ -40,4 +41,5 @@ class EventStore:
             step=step,
             message=message,
             payload=payload,
+            conn=conn,
         )

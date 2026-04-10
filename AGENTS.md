@@ -35,9 +35,11 @@ Work should preserve these architectural constraints:
 
 ## Runtime and Persistence Rules
 
-- Keep Redis as queue transport and Supabase/Postgres as persistence of record.
+- Keep Redis as queue transport and Supabase-hosted PostgreSQL as persistence of record.
+- Prefer direct PostgreSQL access via `DATABASE_URL` or `SUPABASE_DB_URL` over the Supabase REST client for runtime persistence paths.
 - Keep broker payloads small; prefer staged file references over raw document bytes in Celery arguments.
 - Keep schema/code alignment between `src/db.py` and `infra/sql/schema.sql`.
+- Keep ordered SQL migrations in `infra/sql/migrations/` and treat `schema.sql` as the latest snapshot.
 - Prefer incremental service-layer changes over ad hoc logic in worker or API handlers.
 - Do not introduce schema changes unless they are justified by a concrete runtime need.
 - Keep the API and worker aligned on the shared staging path configured by `LOCAL_STORAGE_PATH`.

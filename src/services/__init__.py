@@ -33,7 +33,7 @@ def create_platform_services() -> PlatformServices:
     event_store = EventStore()
     session_manager = SessionManager()
     task_service = TaskService()
-    batch_service = BatchService(task_service=task_service)
+    batch_service = BatchService(task_service=task_service, event_store=event_store)
     session_service = SessionService(session_manager=session_manager)
     router_service = RouterService(registry=registry)
     validator_service = ValidatorService()
