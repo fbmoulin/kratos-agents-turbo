@@ -1,6 +1,10 @@
-"""Prometheus exposition helpers backed by operational SQL read models."""
+"""Prometheus exposition helpers backed by cached operational read models."""
 
 from __future__ import annotations
+
+from dataclasses import dataclass, field
+from threading import Lock
+from time import monotonic
 
 from prometheus_client import CollectorRegistry, generate_latest
 from prometheus_client.core import GaugeMetricFamily
@@ -84,6 +88,13 @@ class OperationalMetricsCollector:
         running_tasks.add_metric([], snapshot["running_task_count"])
         yield running_tasks
 
+        dispatched_but_queued = GaugeMetricFamily(
+            "kratos_dispatched_but_queued_tasks",
+            "Count of queued tasks that were already marked as dispatched.",
+        )
+        dispatched_but_queued.add_metric([], snapshot["dispatched_but_queued_count"])
+        yield dispatched_but_queued
+
         workers = GaugeMetricFamily(
             "kratos_workers_active",
             "Count of Celery workers answering inspect ping.",
@@ -110,9 +121,47 @@ class OperationalMetricsCollector:
         yield last_success
 
 
-def generate_metrics_payload(operations_service: OperationsService) -> bytes:
-    """Return a full Prometheus text payload for the current runtime snapshot."""
+@dataclass
+class _MetricsPayloadCache:
+    ttl_seconds: int
+    payload: bytes | None = None
+    expires_at: float = 0.0
+    lock: Lock = field(default_factory=Lock)
 
-    registry = CollectorRegistry()
-    registry.register(OperationalMetricsCollector(operations_service))
-    return generate_latest(registry)
+    def get_or_build(self, operations_service: OperationsService) -> bytes:
+        now = monotonic()
+        if self.payload is not None and now < self.expires_at:
+            return self.payload
+        with self.lock:
+            now = monotonic()
+            if self.payload is not None and now < self.expires_at:
+                return self.payload
+            registry = CollectorRegistry()
+            registry.register(OperationalMetricsCollector(operations_service))
+            self.payload = generate_latest(registry)
+            self.expires_at = now + max(self.ttl_seconds, 1)
+            return self.payload
+
+
+_metrics_payload_cache: _MetricsPayloadCache | None = None
+
+
+def reset_metrics_payload_cache() -> None:
+    global _metrics_payload_cache
+    _metrics_payload_cache = None
+
+
+def generate_metrics_payload(
+    operations_service: OperationsService,
+    *,
+    ttl_seconds: int = 15,
+) -> bytes:
+    """Return a Prometheus text payload backed by a short-lived in-memory cache."""
+
+    global _metrics_payload_cache
+    if (
+        _metrics_payload_cache is None
+        or _metrics_payload_cache.ttl_seconds != max(ttl_seconds, 1)
+    ):
+        _metrics_payload_cache = _MetricsPayloadCache(ttl_seconds=max(ttl_seconds, 1))
+    return _metrics_payload_cache.get_or_build(operations_service)

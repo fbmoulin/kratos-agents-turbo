@@ -5,9 +5,20 @@ from src.api.main import app
 
 
 def test_metrics_endpoint_returns_prometheus_payload(monkeypatch):
+    calls: dict[str, object] = {}
+
     monkeypatch.setattr(
         "src.api.main.generate_metrics_payload",
-        lambda operations_service: b"# HELP kratos_tasks_total test\nkratos_tasks_total 1\n",
+        lambda operations_service, ttl_seconds=15: (
+            calls.setdefault(
+                "generate_metrics_payload",
+                {
+                    "operations_service": operations_service,
+                    "ttl_seconds": ttl_seconds,
+                },
+            )
+            and b"# HELP kratos_tasks_total test\nkratos_tasks_total 1\n"
+        ),
     )
 
     client = TestClient(app)
@@ -16,6 +27,7 @@ def test_metrics_endpoint_returns_prometheus_payload(monkeypatch):
     assert response.status_code == 200
     assert response.text == "# HELP kratos_tasks_total test\nkratos_tasks_total 1\n"
     assert response.headers["content-type"].startswith("text/plain; version=0.0.4")
+    assert calls["generate_metrics_payload"]["ttl_seconds"] == 15
 
 
 def test_operations_summary_returns_operational_snapshot(monkeypatch):

@@ -352,6 +352,8 @@ Current automated coverage includes:
   - bounded exponential retry per `task_type`
 - logs include `task_id` and `session_id` correlation fields
 - `/metrics` exposes Prometheus-friendly operational metrics derived from Postgres and Celery heartbeat inspection
+- `/metrics` is served through a short-lived in-memory cache controlled by `METRICS_CACHE_TTL_SECONDS`
+- `/metrics` and `/operations/summary` both surface the `dispatched_but_queued` anomaly so operators can spot broker/worker lag quickly
 - OpenTelemetry instrumentation is optional and controlled through `OTEL_ENABLED` plus `OTEL_EXPORTER_OTLP_ENDPOINT`
 - Prometheus, Grafana, and Flower are provided in the local compose stack as operator tooling
 - batch endpoints provide aggregate status derived from underlying task states

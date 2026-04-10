@@ -45,6 +45,7 @@ Delivered:
 - dedicated Celery workers per queue profile
 - bounded retry policy with explicit retry classification
 - Prometheus metrics endpoint and operational summary endpoint
+- cached metrics scrape path with explicit `dispatched_but_queued` detection
 - optional OpenTelemetry bootstrap for API/worker/Postgres/Redis
 - local Prometheus, Grafana, and Flower operator stack
 - GitHub Actions CI for lint, tests, compose validation, import smoke, and Docker build

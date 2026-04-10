@@ -79,6 +79,7 @@ class Settings:
     supabase_key: str | None
     operational_pending_dispatch_after_minutes: int
     operational_stuck_task_after_minutes: int
+    metrics_cache_ttl_seconds: int
     otel_enabled: bool
     otel_service_namespace: str
     otel_exporter_otlp_endpoint: str | None
@@ -179,6 +180,7 @@ def get_settings() -> Settings:
             5,
         ),
         operational_stuck_task_after_minutes=_get_int("OPS_STUCK_TASK_AFTER_MINUTES", 30),
+        metrics_cache_ttl_seconds=_get_int("METRICS_CACHE_TTL_SECONDS", 15),
         otel_enabled=_get_bool("OTEL_ENABLED", False),
         otel_service_namespace=_get_env("OTEL_SERVICE_NAMESPACE", "kratos") or "kratos",
         otel_exporter_otlp_endpoint=_get_env("OTEL_EXPORTER_OTLP_ENDPOINT"),

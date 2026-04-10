@@ -97,5 +97,6 @@ class OperationsService:
             "last_success_timestamps": db.get_last_success_timestamps(),
             "pending_dispatch_count": db.count_pending_dispatches(),
             "running_task_count": db.count_running_tasks(),
+            "dispatched_but_queued_count": db.count_dispatched_but_queued_tasks(),
             "worker_heartbeats": self.get_worker_heartbeats(),
         }

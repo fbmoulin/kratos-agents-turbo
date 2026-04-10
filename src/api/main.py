@@ -67,7 +67,10 @@ async def health() -> dict[str, str]:
 
 @app.get("/metrics")
 async def metrics() -> Response:
-    payload = generate_metrics_payload(services.operations_service)
+    payload = generate_metrics_payload(
+        services.operations_service,
+        ttl_seconds=settings.metrics_cache_ttl_seconds,
+    )
     return Response(payload, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 

@@ -1083,3 +1083,17 @@ def count_running_tasks(*, conn: Any | None = None) -> int:
         conn=conn,
     )
     return int((result or {}).get("total") or 0)
+
+
+def count_dispatched_but_queued_tasks(*, conn: Any | None = None) -> int:
+    result = _fetchone(
+        """
+        select count(*)::bigint as total
+        from tasks t
+        join task_dispatches td on td.task_id = t.id
+        where t.status = 'queued'
+          and td.status = 'dispatched'
+        """,
+        conn=conn,
+    )
+    return int((result or {}).get("total") or 0)

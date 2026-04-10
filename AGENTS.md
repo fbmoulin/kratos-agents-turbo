@@ -25,6 +25,7 @@ Work should preserve these architectural constraints:
 - Maintain structured logging with `task_id` and `session_id` where operationally relevant.
 - Prefer queue selection by `task_type` instead of a single undifferentiated worker flow.
 - Keep `/metrics` and `/operations/summary` aligned with real runtime behavior; do not expose ad hoc operational data directly from handlers.
+- Prefer low-cost operational read paths: cache metrics scrapes briefly and surface `dispatched_but_queued` explicitly instead of hiding queue drift.
 
 ## Catalog and Agent Rules
 
