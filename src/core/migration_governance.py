@@ -9,8 +9,8 @@ from typing import Any
 
 from src.core import ApplicationError
 
-LEDGER_SCHEMA = "internal"
-LEDGER_TABLE = "platform_migrations"
+LEDGER_SCHEMA = "platform_meta"
+LEDGER_TABLE = "repo_migrations"
 
 
 @dataclass(frozen=True)
@@ -18,7 +18,7 @@ class RepoMigration:
     version: str
     filename: str
     path: Path
-    checksum_sha256: str
+    checksum: str
     sql: str
 
 
