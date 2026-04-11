@@ -24,6 +24,18 @@ logger = get_logger(__name__)
 configure_logging(settings.log_level)
 
 
+def _mark_staged_input_cleaned(task_id: str, staged_path: str) -> None:
+    record = db.get_task(task_id)
+    if record is None:
+        return
+    input_metadata = dict(record.get("input_metadata") or {})
+    if input_metadata.get("staged_path") == staged_path:
+        input_metadata.pop("staged_path", None)
+    input_metadata["staged_input_deleted"] = True
+    input_metadata["staged_input_deleted_at"] = db.utc_now()
+    db.update_task(task_id, input_metadata=input_metadata)
+
+
 class BaseTask(Task):
     """Base task with cancellation checks."""
 
@@ -147,8 +159,9 @@ def process_document_task(
     content_type: str = "application/pdf",
     batch_id: str | None = None,
 ) -> dict[str, object]:
-    self.check_cancelled(task_id)
+    cleanup_staged_input = False
     try:
+        self.check_cancelled(task_id)
         if staged_path:
             file_bytes = services.staging_service.load_staged_input(staged_path)
         elif file_content_b64:
@@ -173,12 +186,29 @@ def process_document_task(
             requested_session_id=requested_session_id,
             content_type=content_type,
         )
+        cleanup_staged_input = True
         return result
     except Ignore:
+        cleanup_staged_input = True
         raise
     except Exception as exc:
         if is_retryable_exception(exc):
             if self.schedule_retry(task_id=task_id, task_type=task_type, reason=exc):
                 return {}
         self.mark_terminal_failure(task_id=task_id, task_type=task_type, error=exc)
+        cleanup_staged_input = True
         raise
+    finally:
+        if cleanup_staged_input and staged_path:
+            try:
+                services.staging_service.delete_staged_input(staged_path)
+                _mark_staged_input_cleaned(task_id, staged_path)
+            except Exception:
+                logger.exception(
+                    "failed to cleanup staged input",
+                    extra={
+                        "task_id": task_id,
+                        "session_id": "-",
+                        "batch_id": batch_id or "-",
+                    },
+                )
