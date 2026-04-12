@@ -122,11 +122,16 @@ def test_list_batches_returns_summaries(monkeypatch):
     )
 
     client = TestClient(app)
-    response = client.get("/batches?limit=25&offset=10")
+    response = client.get("/batches?status=running&task_type=despacho&limit=25&offset=10")
 
     assert response.status_code == 200
     assert response.json() == [{"id": "batch-1", "status": "queued"}]
-    assert calls["list_batches"] == {"limit": 25, "offset": 10}
+    assert calls["list_batches"] == {
+        "status": "running",
+        "task_type": "despacho",
+        "limit": 25,
+        "offset": 10,
+    }
 
 
 def test_reconcile_dispatches_endpoint(monkeypatch):
@@ -168,5 +173,35 @@ def test_post_batches_reports_recoverable_dispatch_failure(monkeypatch):
         data={"message": "Gerar lote", "tipo": "despacho", "idempotency_key": "batch-reconcile"},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 202
     assert response.json()["dispatch_summary"] == {"dispatched": 0, "failed": 1}
+
+
+def test_post_batches_keeps_200_for_idempotent_reuse_even_with_dispatch_summary(monkeypatch):
+    async def fake_submit_batch(**kwargs):
+        return {
+            "batch_id": "batch-existing",
+            "status": "running",
+            "task_type": "despacho",
+            "priority": 9,
+            "total_tasks": 2,
+            "queue": "legal-despacho",
+            "task_ids": ["task-1", "task-2"],
+            "idempotency_reused": True,
+            "dispatch_summary": {"dispatched": 0, "failed": 1},
+        }
+
+    monkeypatch.setattr(
+        "src.api.main.services.submission_service.submit_batch",
+        fake_submit_batch,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/batches",
+        files=[("files", ("a.pdf", b"%PDF-1.4 A", "application/pdf"))],
+        data={"message": "Gerar lote", "tipo": "despacho", "idempotency_key": "batch-existing"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["idempotency_reused"] is True

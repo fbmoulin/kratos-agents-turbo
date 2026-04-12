@@ -156,6 +156,11 @@ Important public contract:
 - `POST /tasks` is create-only
 - `POST /batches` is create-only
 - `POST /batches` accepts optional `idempotency_key`
+- `POST /batches` returns `202 Accepted` when persistence succeeds but one or more dispatches fail and require reconcile
+- `GET /tasks` accepts `status`, `task_type`, `limit`, and `offset`
+- `GET /batches` accepts `status`, `task_type`, `limit`, and `offset`
+- `GET /operations/summary` accepts `task_type`, `limit`, `pending_dispatch_after_minutes`, and `stuck_task_after_minutes`
+- `GET /operations/summary` includes `queue_backlog` aggregated by `queue_name` and `task_type`
 - public resume/rebind is not exposed
 - PDF is the only supported document input in the current phase
 - all files in one batch share the same `task_type`

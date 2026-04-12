@@ -159,12 +159,13 @@ def test_list_tasks_returns_summaries_with_pagination(monkeypatch):
     )
 
     client = TestClient(app)
-    response = client.get("/tasks?status=queued&limit=25&offset=5")
+    response = client.get("/tasks?status=queued&task_type=despacho&limit=25&offset=5")
 
     assert response.status_code == 200
     assert response.json() == [{"id": "task-1", "status": "queued", "file_name": "sample.pdf"}]
     assert calls["list_task_summaries"] == {
         "status": "queued",
+        "task_type": "despacho",
         "limit": 25,
         "offset": 5,
     }

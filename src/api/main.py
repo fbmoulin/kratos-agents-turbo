@@ -117,7 +117,7 @@ async def submit_batch(
     agent_id: Annotated[str | None, Form()] = None,
     idempotency_key: Annotated[str | None, Form()] = None,
 ) -> dict[str, object]:
-    return await services.submission_service.submit_batch(
+    result = await services.submission_service.submit_batch(
         files=files,
         message=message,
         task_type=task_type or tipo,
@@ -125,6 +125,14 @@ async def submit_batch(
         agent_id=agent_id,
         idempotency_key=idempotency_key,
     )
+    dispatch_summary = result.get("dispatch_summary")
+    if (
+        isinstance(dispatch_summary, dict)
+        and not result.get("idempotency_reused", False)
+        and int(dispatch_summary.get("failed") or 0) > 0
+    ):
+        return JSONResponse(status_code=202, content=result)
+    return result
 
 
 @app.get("/tasks/{task_id}")
@@ -150,11 +158,13 @@ async def get_task_events(task_id: str) -> dict[str, object]:
 @app.get("/tasks")
 async def list_all_tasks(
     status: str | None = Query(default=None),
+    task_type: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, object]]:
     return services.task_service.list_task_summaries(
         status=status,
+        task_type=task_type,
         limit=limit,
         offset=offset,
     )
@@ -162,10 +172,17 @@ async def list_all_tasks(
 
 @app.get("/batches")
 async def list_all_batches(
+    status: str | None = Query(default=None),
+    task_type: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> list[dict[str, object]]:
-    return services.batch_service.list_batches(limit=limit, offset=offset)
+    return services.batch_service.list_batches(
+        status=status,
+        task_type=task_type,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @app.get("/batches/{batch_id}")
@@ -180,11 +197,13 @@ async def reconcile_dispatches(limit: int = Query(default=100, ge=1, le=1000)) -
 
 @app.get("/operations/summary")
 async def get_operations_summary(
+    task_type: str | None = Query(default=None),
     limit: int = Query(default=25, ge=1, le=200),
     pending_dispatch_after_minutes: int | None = Query(default=None, ge=0, le=1440),
     stuck_task_after_minutes: int | None = Query(default=None, ge=0, le=10080),
 ) -> dict[str, object]:
     return services.operations_service.summary(
+        task_type=task_type,
         pending_dispatch_after_minutes=(
             pending_dispatch_after_minutes
             if pending_dispatch_after_minutes is not None

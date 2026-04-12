@@ -19,10 +19,12 @@ class OperationsService:
         self,
         *,
         older_than_minutes: int,
+        task_type: str | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         return db.list_pending_dispatches(
             older_than_minutes=older_than_minutes,
+            task_type=task_type,
             limit=limit,
         )
 
@@ -30,10 +32,12 @@ class OperationsService:
         self,
         *,
         older_than_minutes: int,
+        task_type: str | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         return db.list_stuck_tasks(
             older_than_minutes=older_than_minutes,
+            task_type=task_type,
             limit=limit,
         )
 
@@ -41,10 +45,12 @@ class OperationsService:
         self,
         *,
         older_than_minutes: int,
+        task_type: str | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         return db.list_dispatched_but_queued_tasks(
             older_than_minutes=older_than_minutes,
+            task_type=task_type,
             limit=limit,
         )
 
@@ -53,26 +59,31 @@ class OperationsService:
         *,
         pending_dispatch_after_minutes: int,
         stuck_task_after_minutes: int,
+        task_type: str | None = None,
         limit: int = 25,
     ) -> dict[str, Any]:
         return {
+            "queue_backlog": db.get_queue_backlog_summary(task_type=task_type),
             "open_batches": [
                 self.batch_service._build_batch_summary(batch)
-                for batch in db.list_open_batch_summaries(limit=limit)
+                for batch in db.list_open_batch_summaries(task_type=task_type, limit=limit)
             ],
             "pending_dispatches": self.list_pending_dispatches(
                 older_than_minutes=pending_dispatch_after_minutes,
+                task_type=task_type,
                 limit=limit,
             ),
             "dispatched_but_queued": self.list_dispatched_but_queued_tasks(
                 older_than_minutes=pending_dispatch_after_minutes,
+                task_type=task_type,
                 limit=limit,
             ),
             "stuck_tasks": self.list_stuck_tasks(
                 older_than_minutes=stuck_task_after_minutes,
+                task_type=task_type,
                 limit=limit,
             ),
-            "failed_tasks_by_type": db.get_failed_task_counts(),
+            "failed_tasks_by_type": db.get_failed_task_counts(task_type=task_type),
             "worker_heartbeats": self.get_worker_heartbeats(),
         }
 

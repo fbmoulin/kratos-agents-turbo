@@ -55,6 +55,7 @@ class TaskService:
         status: str | None = None,
         *,
         batch_id: str | None = None,
+        task_type: str | None = None,
         limit: int | None = None,
         offset: int = 0,
         conn: Any | None = None,
@@ -62,6 +63,7 @@ class TaskService:
         return db.list_tasks(
             status=status,
             batch_id=batch_id,
+            task_type=task_type,
             limit=limit,
             offset=offset,
             conn=conn,
@@ -72,6 +74,7 @@ class TaskService:
         status: str | None = None,
         *,
         batch_id: str | None = None,
+        task_type: str | None = None,
         limit: int = 100,
         offset: int = 0,
         conn: Any | None = None,
@@ -79,6 +82,7 @@ class TaskService:
         return db.list_task_summaries(
             status=status,
             batch_id=batch_id,
+            task_type=task_type,
             limit=limit,
             offset=offset,
             conn=conn,

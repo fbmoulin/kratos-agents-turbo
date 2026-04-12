@@ -182,6 +182,7 @@ def list_tasks(
     status: str | None = None,
     *,
     batch_id: str | None = None,
+    task_type: str | None = None,
     limit: int | None = None,
     offset: int = 0,
     conn: Any | None = None,
@@ -194,6 +195,9 @@ def list_tasks(
     if batch_id:
         conditions.append("batch_id = %s")
         params.append(batch_id)
+    if task_type:
+        conditions.append("task_type = %s")
+        params.append(task_type)
     query = "select * from tasks"
     if conditions:
         query += " where " + " and ".join(conditions)
@@ -208,6 +212,7 @@ def list_task_summaries(
     status: str | None = None,
     *,
     batch_id: str | None = None,
+    task_type: str | None = None,
     limit: int = 100,
     offset: int = 0,
     conn: Any | None = None,
@@ -220,6 +225,9 @@ def list_task_summaries(
     if batch_id:
         conditions.append("batch_id = %s")
         params.append(batch_id)
+    if task_type:
+        conditions.append("task_type = %s")
+        params.append(task_type)
     query = """
         select
             id,
@@ -316,6 +324,8 @@ def list_batches(*, conn: Any | None = None) -> list[dict[str, Any]]:
 
 def list_batch_summaries(
     *,
+    task_type: str | None = None,
+    status: str | None = None,
     limit: int | None = None,
     offset: int = 0,
     conn: Any | None = None,
@@ -376,14 +386,23 @@ def list_batch_summaries(
             completed_count::bigint as completed_count,
             failed_count::bigint as failed_count,
             cancelled_count::bigint as cancelled_count
-        from batch_counts
-        order by created_at desc
+          from batch_counts
     """
-    params: tuple[Any, ...] = ()
+    conditions: list[str] = []
+    params: list[Any] = []
+    if task_type:
+        conditions.append("task_type = %s")
+        params.append(task_type)
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+    if conditions:
+        query += " where " + " and ".join(conditions)
+    query += "\n order by created_at desc"
     if limit is not None:
         query += "\n limit %s offset %s"
-        params = (limit, offset)
-    return _fetchall(query, params, conn=conn)
+        params.extend([limit, offset])
+    return _fetchall(query, tuple(params), conn=conn)
 
 
 def get_batch_summary(batch_id: str, *, conn: Any | None = None) -> dict[str, Any] | None:
@@ -474,11 +493,11 @@ def list_batch_task_views(batch_id: str, *, conn: Any | None = None) -> list[dic
 
 def list_open_batch_summaries(
     *,
+    task_type: str | None = None,
     limit: int = 25,
     conn: Any | None = None,
 ) -> list[dict[str, Any]]:
-    return _fetchall(
-        """
+    query = """
         with batch_counts as (
             select
                 b.id,
@@ -534,22 +553,24 @@ def list_open_batch_summaries(
             completed_count::bigint as completed_count,
             failed_count::bigint as failed_count,
             cancelled_count::bigint as cancelled_count
-        from batch_counts
-        where
-            case
-                when cancelled_count = total_tasks then 'cancelled'
+          from batch_counts
+          where
+              case
+                  when cancelled_count = total_tasks then 'cancelled'
                 when completed_count = total_tasks then 'completed'
                 when failed_count = total_tasks then 'failed'
                 when queued_count = total_tasks then 'queued'
-                when running_count > 0 or queued_count > 0 then 'running'
-                else 'partial'
-            end in ('queued', 'running', 'partial')
-        order by created_at desc
-        limit %s
-        """,
-        (limit,),
-        conn=conn,
-    )
+                  when running_count > 0 or queued_count > 0 then 'running'
+                  else 'partial'
+              end in ('queued', 'running', 'partial')
+    """
+    params: list[Any] = []
+    if task_type:
+        query += "\n  and task_type = %s"
+        params.append(task_type)
+    query += "\n order by created_at desc\n limit %s"
+    params.append(limit)
+    return _fetchall(query, tuple(params), conn=conn)
 
 
 def create_session(
@@ -956,11 +977,11 @@ def get_last_success_timestamps(*, conn: Any | None = None) -> list[dict[str, An
 def list_pending_dispatches(
     *,
     older_than_minutes: int,
+    task_type: str | None = None,
     limit: int = 100,
     conn: Any | None = None,
 ) -> list[dict[str, Any]]:
-    return _fetchall(
-        """
+    query = """
         select
             td.task_id,
             td.queue_name,
@@ -977,22 +998,24 @@ def list_pending_dispatches(
         join tasks t on t.id = td.task_id
         where td.status in ('pending', 'failed', 'dispatching')
           and td.updated_at <= now() - make_interval(mins => %s)
-        order by td.updated_at asc
-        limit %s
-        """,
-        (older_than_minutes, limit),
-        conn=conn,
-    )
+    """
+    params: list[Any] = [older_than_minutes]
+    if task_type:
+        query += "\n  and t.task_type = %s"
+        params.append(task_type)
+    query += "\n order by td.updated_at asc\n limit %s"
+    params.append(limit)
+    return _fetchall(query, tuple(params), conn=conn)
 
 
 def list_stuck_tasks(
     *,
     older_than_minutes: int,
+    task_type: str | None = None,
     limit: int = 100,
     conn: Any | None = None,
 ) -> list[dict[str, Any]]:
-    return _fetchall(
-        """
+    query = """
         select
             id,
             batch_id,
@@ -1006,22 +1029,24 @@ def list_stuck_tasks(
         from tasks
         where status = 'running'
           and started_at <= now() - make_interval(mins => %s)
-        order by started_at asc
-        limit %s
-        """,
-        (older_than_minutes, limit),
-        conn=conn,
-    )
+    """
+    params: list[Any] = [older_than_minutes]
+    if task_type:
+        query += "\n  and task_type = %s"
+        params.append(task_type)
+    query += "\n order by started_at asc\n limit %s"
+    params.append(limit)
+    return _fetchall(query, tuple(params), conn=conn)
 
 
 def list_dispatched_but_queued_tasks(
     *,
     older_than_minutes: int,
+    task_type: str | None = None,
     limit: int = 100,
     conn: Any | None = None,
 ) -> list[dict[str, Any]]:
-    return _fetchall(
-        """
+    query = """
         select
             t.id,
             t.batch_id,
@@ -1038,27 +1063,34 @@ def list_dispatched_but_queued_tasks(
         where t.status = 'queued'
           and td.status = 'dispatched'
           and coalesce(td.dispatched_at, td.updated_at) <= now() - make_interval(mins => %s)
-        order by coalesce(td.dispatched_at, td.updated_at) asc
-        limit %s
-        """,
-        (older_than_minutes, limit),
-        conn=conn,
-    )
+    """
+    params: list[Any] = [older_than_minutes]
+    if task_type:
+        query += "\n  and t.task_type = %s"
+        params.append(task_type)
+    query += "\n order by coalesce(td.dispatched_at, td.updated_at) asc\n limit %s"
+    params.append(limit)
+    return _fetchall(query, tuple(params), conn=conn)
 
 
-def get_failed_task_counts(*, conn: Any | None = None) -> list[dict[str, Any]]:
-    return _fetchall(
-        """
+def get_failed_task_counts(
+    *,
+    task_type: str | None = None,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    query = """
         select
             task_type,
             count(*)::bigint as total
         from tasks
         where status = 'failed'
-        group by task_type
-        order by task_type
-        """,
-        conn=conn,
-    )
+    """
+    params: list[Any] = []
+    if task_type:
+        query += "\n  and task_type = %s"
+        params.append(task_type)
+    query += "\n group by task_type\n order by task_type"
+    return _fetchall(query, tuple(params), conn=conn)
 
 
 def count_pending_dispatches(*, conn: Any | None = None) -> int:
@@ -1097,3 +1129,38 @@ def count_dispatched_but_queued_tasks(*, conn: Any | None = None) -> int:
         conn=conn,
     )
     return int((result or {}).get("total") or 0)
+
+
+def get_queue_backlog_summary(
+    *,
+    task_type: str | None = None,
+    conn: Any | None = None,
+) -> list[dict[str, Any]]:
+    query = """
+        select
+            td.queue_name,
+            t.task_type,
+            count(*)::bigint as total_tasks,
+            count(*) filter (where t.status = 'queued')::bigint as queued_tasks,
+            count(*) filter (where t.status = 'running')::bigint as running_tasks,
+            count(*) filter (where t.status = 'completed')::bigint as completed_tasks,
+            count(*) filter (where t.status = 'failed')::bigint as failed_tasks,
+            count(*) filter (where t.status = 'cancelled')::bigint as cancelled_tasks,
+            count(*) filter (where td.status in ('pending', 'dispatching', 'failed'))::bigint
+                as pending_dispatches,
+            count(*) filter (where td.status = 'failed')::bigint as failed_dispatches,
+            count(*) filter (
+                where td.status = 'dispatched' and t.status = 'queued'
+            )::bigint as dispatched_but_queued_tasks
+        from task_dispatches td
+        join tasks t on t.id = td.task_id
+    """
+    params: list[Any] = []
+    if task_type:
+        query += "\n where t.task_type = %s"
+        params.append(task_type)
+    query += """
+        group by td.queue_name, t.task_type
+        order by td.queue_name, t.task_type
+    """
+    return _fetchall(query, tuple(params), conn=conn)

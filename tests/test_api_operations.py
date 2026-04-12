@@ -34,6 +34,17 @@ def test_operations_summary_returns_operational_snapshot(monkeypatch):
     monkeypatch.setattr(
         "src.api.main.services.operations_service.summary",
         lambda **kwargs: {
+            "queue_backlog": [
+                {
+                    "queue_name": "legal-despacho",
+                    "task_type": "despacho",
+                    "queued_tasks": 3,
+                    "running_tasks": 1,
+                    "pending_dispatches": 1,
+                    "failed_dispatches": 0,
+                    "dispatched_but_queued_tasks": 0,
+                }
+            ],
             "open_batches": [{"id": "batch-1", "status": "running"}],
             "pending_dispatches": [{"task_id": "task-1", "status": "failed"}],
             "dispatched_but_queued": [{"id": "task-3", "status": "queued"}],
@@ -46,11 +57,12 @@ def test_operations_summary_returns_operational_snapshot(monkeypatch):
 
     client = TestClient(app)
     response = client.get(
-        "/operations/summary?limit=10&pending_dispatch_after_minutes=7&stuck_task_after_minutes=45"
+        "/operations/summary?task_type=despacho&limit=10&pending_dispatch_after_minutes=7&stuck_task_after_minutes=45"
     )
 
     assert response.status_code == 200
     payload = response.json()
+    assert payload["queue_backlog"][0]["queue_name"] == "legal-despacho"
     assert payload["open_batches"][0]["id"] == "batch-1"
     assert payload["pending_dispatches"][0]["task_id"] == "task-1"
     assert payload["dispatched_but_queued"][0]["id"] == "task-3"
@@ -58,6 +70,7 @@ def test_operations_summary_returns_operational_snapshot(monkeypatch):
     assert payload["failed_tasks_by_type"][0]["task_type"] == "decisao"
     assert payload["worker_heartbeats"][0]["worker"] == "despacho@host"
     assert payload["query"] == {
+        "task_type": "despacho",
         "pending_dispatch_after_minutes": 7,
         "stuck_task_after_minutes": 45,
         "limit": 10,

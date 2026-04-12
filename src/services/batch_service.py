@@ -155,12 +155,19 @@ class BatchService:
     def list_batches(
         self,
         *,
+        task_type: str | None = None,
+        status: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         return [
             self._build_batch_summary(summary)
-            for summary in db.list_batch_summaries(limit=limit, offset=offset)
+            for summary in db.list_batch_summaries(
+                task_type=task_type,
+                status=status,
+                limit=limit,
+                offset=offset,
+            )
         ]
 
     def get_batch_with_tasks(self, batch_id: str) -> dict[str, Any]:
