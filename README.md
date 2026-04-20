@@ -271,6 +271,18 @@ The practical harness for Stage 3 is:
 python scripts/evaluate_criminal_advocacy_dataset.py --limit 4
 ```
 
+To produce JSON plus a human-review Markdown report in one run:
+
+```bash
+python scripts/evaluate_criminal_advocacy_dataset.py --limit 10 --output runtime/criminal-advocacy-report.json --markdown-output runtime/criminal-advocacy-report.md
+```
+
+You can also render Markdown later from an existing JSON report:
+
+```bash
+python scripts/render_criminal_advocacy_report.py runtime/criminal-advocacy-report.json --output runtime/criminal-advocacy-report.md
+```
+
 Notes:
 
 - it requires `DATABASE_URL` or `SUPABASE_DB_URL`

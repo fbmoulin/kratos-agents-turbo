@@ -20,6 +20,7 @@ from src.evaluation.criminal_advocacy_dataset import (
     iter_cases,
     score_keyword_coverage,
 )
+from src.evaluation.criminal_advocacy_reporting import render_markdown_report
 from src.worker.tasks import process_document_task
 
 
@@ -45,6 +46,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help="Optional path to write the JSON report.",
+    )
+    parser.add_argument(
+        "--markdown-output",
+        type=Path,
+        default=None,
+        help="Optional path to write a Markdown review report.",
     )
     return parser.parse_args()
 
@@ -255,6 +262,8 @@ def main() -> int:
         args.output.write_text(report_text, encoding="utf-8")
     else:
         print(report_text)
+    if args.markdown_output:
+        args.markdown_output.write_text(render_markdown_report(report), encoding="utf-8")
     return 0
 
 
