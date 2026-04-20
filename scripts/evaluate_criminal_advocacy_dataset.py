@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# ruff: noqa: E402
 import argparse
 import json
 import os
@@ -11,7 +12,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from fastapi.testclient import TestClient
-
 from src.api.main import app
 from src.api.main import services as api_services
 from src.evaluation.criminal_advocacy_dataset import (
@@ -77,7 +77,14 @@ def should_include(case, piece_types: set[str] | None) -> bool:
     return piece_types is None or case.target_piece_type in piece_types
 
 
-def build_case_scores(case, *, output_text: str, status: str, classification, event_types: list[str]):
+def build_case_scores(
+    case,
+    *,
+    output_text: str,
+    status: str,
+    classification,
+    event_types: list[str],
+):
     strategy = score_keyword_coverage(output_text, [case.expected_strategic_direction])
     tactical = score_keyword_coverage(output_text, case.notes["tactical_priorities"])
     proof_gaps = score_keyword_coverage(output_text, case.notes["proof_gaps"])
@@ -133,8 +140,6 @@ def aggregate_report(case_reports: list[dict[str, object]]) -> dict[str, object]
             "by_piece_type": {},
         }
 
-    total = len(case_reports)
-
     def average(values: list[float]) -> float:
         return round(sum(values) / len(values), 3) if values else 0.0
 
@@ -146,7 +151,9 @@ def aggregate_report(case_reports: list[dict[str, object]]) -> dict[str, object]
     for piece_type, items in grouped.items():
         by_piece_type[piece_type] = {
             "cases": len(items),
-            "average_overall_score": average([float(item["scores"]["overall_score"]) for item in items]),
+            "average_overall_score": average(
+                [float(item["scores"]["overall_score"]) for item in items]
+            ),
             "completion_rate": average(
                 [1.0 if item["scores"]["completed"] else 0.0 for item in items]
             ),

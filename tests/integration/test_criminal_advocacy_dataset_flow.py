@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-
 from src.api.main import app
 from src.api.main import services as api_services
 from src.evaluation.criminal_advocacy_dataset import (
@@ -77,7 +76,10 @@ def test_criminal_advocacy_dataset_cases_complete_through_runtime(monkeypatch):
         }
         assert int(metadata["extracted_characters"]) > 0
 
-        event_types = [event["event_type"] for event in api_services.task_service.list_events(task_id)]
+        event_types = [
+            event["event_type"]
+            for event in api_services.task_service.list_events(task_id)
+        ]
         assert "TASK_CREATED" in event_types
         assert "TASK_DISPATCHED" in event_types
         assert "TASK_STARTED" in event_types

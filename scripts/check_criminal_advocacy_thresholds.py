@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# ruff: noqa: E402
 import argparse
 import json
 import sys
@@ -13,7 +14,6 @@ from src.evaluation.criminal_advocacy_thresholds import (
     evaluate_report_against_thresholds,
     load_thresholds,
 )
-
 
 DEFAULT_THRESHOLDS_PATH = (
     ROOT / "datasets" / "criminal_advocacy_stage2" / "thresholds.json"

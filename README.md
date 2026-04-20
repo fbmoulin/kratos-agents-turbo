@@ -289,6 +289,8 @@ To apply the dataset baseline gate against an existing JSON report:
 python scripts/check_criminal_advocacy_thresholds.py runtime/criminal-advocacy-report.json --output runtime/criminal-advocacy-thresholds.json
 ```
 
+There is also a manual GitHub Actions workflow, `Criminal Advocacy Evaluation`, that boots ephemeral Postgres/Redis, runs the dataset through the runtime, uploads JSON/Markdown artifacts, and fails the run if the threshold gate does not pass.
+
 Notes:
 
 - it requires `DATABASE_URL` or `SUPABASE_DB_URL`

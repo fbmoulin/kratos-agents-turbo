@@ -27,11 +27,14 @@ def evaluate_report_against_thresholds(
         observed = float(summary.get(metric) or 0.0)
         if observed < float(minimum):
             failures.append(
-                f"summary metric '{metric}' below threshold: observed={observed:.3f} minimum={float(minimum):.3f}"
+                f"summary metric '{metric}' below threshold: "
+                f"observed={observed:.3f} minimum={float(minimum):.3f}"
             )
 
     by_piece_type = dict(summary.get("by_piece_type") or {})
-    for piece_type, minimums in dict(thresholds.get("per_piece_type_minimums") or {}).items():
+    for piece_type, minimums in dict(
+        thresholds.get("per_piece_type_minimums") or {}
+    ).items():
         payload = by_piece_type.get(piece_type)
         if payload is None:
             failures.append(f"missing aggregate entry for piece type '{piece_type}'")

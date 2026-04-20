@@ -26,23 +26,28 @@ def _recommendations(summary: dict[str, Any], cases: list[dict[str, Any]]) -> li
         )
     if float(summary.get("average_strategy_coverage") or 0.0) < 0.35:
         recommendations.append(
-            "Strengthen strategic framing in generated drafts; the runtime is not carrying the expected defense direction into the final text."
+            "Strengthen strategic framing in generated drafts; the runtime is not "
+            "carrying the expected defense direction into the final text."
         )
     if float(summary.get("average_tactical_coverage") or 0.0) < 0.35:
         recommendations.append(
-            "Prioritize tactical checklist injection so requests, evidence gaps, and fallback asks appear explicitly in the output."
+            "Prioritize tactical checklist injection so requests, evidence gaps, "
+            "and fallback asks appear explicitly in the output."
         )
     if float(summary.get("average_proof_gap_coverage") or 0.0) < 0.25:
         recommendations.append(
-            "Improve handling of evidentiary weaknesses; the current drafts under-reference proof gaps from the dataset."
+            "Improve handling of evidentiary weaknesses; the current drafts "
+            "under-reference proof gaps from the dataset."
         )
     if any(case["scores"]["missing_required_events"] for case in cases):
         recommendations.append(
-            "Inspect event persistence and worker orchestration for missing lifecycle events before trusting runtime observability."
+            "Inspect event persistence and worker orchestration for missing "
+            "lifecycle events before trusting runtime observability."
         )
     if not recommendations:
         recommendations.append(
-            "Current report shows no immediate structural blocker; proceed to larger runs and compare scores by piece type."
+            "Current report shows no immediate structural blocker; proceed to "
+            "larger runs and compare scores by piece type."
         )
     return recommendations
 
@@ -72,27 +77,35 @@ def render_markdown_report(report: dict[str, Any]) -> str:
     lines.append("| Metric | Value |")
     lines.append("| --- | --- |")
     lines.append(f"| Completed cases | `{summary.get('completed_cases', 0)}` |")
-    lines.append(f"| Completion rate | `{_pct(float(summary.get('completion_rate') or 0.0))}` |")
     lines.append(
-        f"| Classification match rate | `{_pct(float(summary.get('classification_match_rate') or 0.0))}` |"
+        f"| Completion rate | `{_pct(float(summary.get('completion_rate') or 0.0))}` |"
+    )
+    lines.append(
+        "| Classification match rate | "
+        f"`{_pct(float(summary.get('classification_match_rate') or 0.0))}` |"
     )
     lines.append(
         f"| Piece-type hint rate | `{_pct(float(summary.get('piece_type_hint_rate') or 0.0))}` |"
     )
     lines.append(
-        f"| Average overall score | `{_score(float(summary.get('average_overall_score') or 0.0))}` |"
+        f"| Average overall score | "
+        f"`{_score(float(summary.get('average_overall_score') or 0.0))}` |"
     )
     lines.append(
-        f"| Average strategy coverage | `{_score(float(summary.get('average_strategy_coverage') or 0.0))}` |"
+        f"| Average strategy coverage | "
+        f"`{_score(float(summary.get('average_strategy_coverage') or 0.0))}` |"
     )
     lines.append(
-        f"| Average tactical coverage | `{_score(float(summary.get('average_tactical_coverage') or 0.0))}` |"
+        f"| Average tactical coverage | "
+        f"`{_score(float(summary.get('average_tactical_coverage') or 0.0))}` |"
     )
     lines.append(
-        f"| Average proof-gap coverage | `{_score(float(summary.get('average_proof_gap_coverage') or 0.0))}` |"
+        f"| Average proof-gap coverage | "
+        f"`{_score(float(summary.get('average_proof_gap_coverage') or 0.0))}` |"
     )
     lines.append(
-        f"| Average risk coverage | `{_score(float(summary.get('average_risk_coverage') or 0.0))}` |"
+        f"| Average risk coverage | "
+        f"`{_score(float(summary.get('average_risk_coverage') or 0.0))}` |"
     )
     lines.append("")
 
@@ -134,10 +147,13 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         for case in weakest_cases:
             scores = case["scores"]
             lines.append(
-                f"### `{case['case_id']}` — `{case['target_piece_type']}` — score `{_score(float(scores['overall_score']))}`"
+                f"### `{case['case_id']}` — `{case['target_piece_type']}` — "
+                f"score `{_score(float(scores['overall_score']))}`"
             )
             lines.append(
-                f"- Classification: expected `{scores['expected_runtime_classification']}`, got `{case.get('classification')}`"
+                f"- Classification: expected "
+                f"`{scores['expected_runtime_classification']}`, got "
+                f"`{case.get('classification')}`"
             )
             lines.append(
                 f"- Missing events: `{', '.join(scores['missing_required_events']) or 'none'}`"
@@ -146,7 +162,8 @@ def render_markdown_report(report: dict[str, Any]) -> str:
                 f"- Strategy missing keywords: `{_top_missing(scores['strategy_coverage'])}`"
             )
             lines.append(
-                f"- Tactical missing keywords: `{_top_missing(scores['tactical_priorities_coverage'])}`"
+                f"- Tactical missing keywords: "
+                f"`{_top_missing(scores['tactical_priorities_coverage'])}`"
             )
             lines.append(
                 f"- Proof-gap missing keywords: `{_top_missing(scores['proof_gaps_coverage'])}`"
@@ -163,8 +180,9 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         lines.append("| --- | --- | --- | --- | --- |")
         for case in sorted_cases:
             lines.append(
-                f"| `{case['case_id']}` | `{case['target_piece_type']}` | `{case['status']}` | "
-                f"`{case.get('classification')}` | `{_score(float(case['scores']['overall_score']))}` |"
+                f"| `{case['case_id']}` | `{case['target_piece_type']}` | "
+                f"`{case['status']}` | `{case.get('classification')}` | "
+                f"`{_score(float(case['scores']['overall_score']))}` |"
             )
         lines.append("")
 

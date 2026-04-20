@@ -3,7 +3,6 @@ from __future__ import annotations
 from io import BytesIO
 
 import pdfplumber
-
 from src.evaluation.criminal_advocacy_dataset import (
     build_case_pdf_bytes,
     build_runtime_message,
@@ -43,7 +42,8 @@ def test_criminal_advocacy_eval_harness_generates_extractable_pdf() -> None:
 
 def test_criminal_advocacy_keyword_scoring_detects_overlap() -> None:
     score = score_keyword_coverage(
-        "A defesa destaca nulidade do reconhecimento, ausência de corroboração e lacunas probatórias.",
+        "A defesa destaca nulidade do reconhecimento, ausência de corroboração "
+        "e lacunas probatórias.",
         [
             "nulidade do reconhecimento",
             "ausencia de corroboração externa",
