@@ -31,6 +31,36 @@ import io
 
 import pdfplumber
 
+HEALTH_KEYWORDS = {
+    "plano de saúde",
+    "plano de saude",
+    "medicamento",
+    "tratamento",
+}
+
+CRIMINAL_KEYWORDS = {
+    "acusado",
+    "acusada",
+    "audiência de custódia",
+    "audiencia de custodia",
+    "crime",
+    "custódia",
+    "custodia",
+    "denuncia",
+    "denúncia",
+    "flagrante",
+    "habeas corpus",
+    "pena",
+    "penal",
+    "prisão",
+    "prisao",
+    "preventiva",
+    "réu",
+    "reu",
+    "tráfico",
+    "trafico",
+}
+
 
 def extract_text_from_pdf(file_bytes: bytes, max_pages: int = 2) -> str:
     """Extract text from the first pages of a PDF.
@@ -68,15 +98,10 @@ def classify_document(text: str) -> str:
     :returns: a string representing the category
     """
     text_lower = text.lower()
-    # Health related keywords
-    health_keywords = ["plano de saúde", "plano de saude", "medicamento", "tratamento"]
-    if any(kw in text_lower for kw in health_keywords):
+    if any(keyword in text_lower for keyword in HEALTH_KEYWORDS):
         return "Saúde"
-    # Criminal law keywords
-    criminal_keywords = ["crime", "acusado", "homicídio", "pena", "denúncia"]
-    if any(kw in text_lower for kw in criminal_keywords):
+    if any(keyword in text_lower for keyword in CRIMINAL_KEYWORDS):
         return "Penal"
-    # Default to civil
     return "Cível"
 
 
