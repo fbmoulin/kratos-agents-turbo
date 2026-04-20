@@ -77,6 +77,7 @@ Core design principles:
 | `src/worker/` | Celery runtime |
 | `src/mcp/` | MCP-like skill server |
 | `src/skills/` | reusable legal processing skills |
+| `src/evaluation/` | dataset projection and harness helpers for practical validation |
 | `infra/sql/` | SQL bootstrap artifacts |
 | `datasets/` | anonymized evaluation corpora for legal drafting and pipeline validation |
 | `tests/` | API/service/registry/state-machine tests |
@@ -259,6 +260,23 @@ The registry now fails early when the catalog is invalid, including:
 For most local environments using Supabase-hosted Postgres, prefer the `Session Pooler` connection string in `DATABASE_URL`.
 
 - use the `Connect` button in the Supabase dashboard
+
+## 9.3 Dataset evaluation harness
+
+Stage 2 introduced `datasets/criminal_advocacy_stage2/` with 10 anonymized criminal advocacy cases.
+
+The practical harness for Stage 3 is:
+
+```bash
+python scripts/evaluate_criminal_advocacy_dataset.py --limit 4
+```
+
+Notes:
+
+- it requires `DATABASE_URL` or `SUPABASE_DB_URL`
+- it exercises the current path `POST /tasks -> staging -> worker -> orchestrator -> legal_agent`
+- it intentionally reuses current runtime task types (`despacho` / `decisao`) as a temporary projection layer for the richer advocacy piece types
+- it does not redesign the backend; it measures how the current runtime behaves against the new dataset
 - copy the `Session Pooler` string
 - keep `DATABASE_URL` pointed at `*.pooler.supabase.com`
 - this avoids the IPv4 limitation of the direct database hostname in many local networks and desktop environments
