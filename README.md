@@ -277,6 +277,14 @@ Notes:
 - it exercises the current path `POST /tasks -> staging -> worker -> orchestrator -> legal_agent`
 - it intentionally reuses current runtime task types (`despacho` / `decisao`) as a temporary projection layer for the richer advocacy piece types
 - it does not redesign the backend; it measures how the current runtime behaves against the new dataset
+- the JSON report includes aggregate and per-case scores for:
+  - completion
+  - runtime classification match
+  - piece-type hint presence
+  - strategic direction coverage
+  - tactical priority coverage
+  - proof-gap coverage
+  - risk coverage
 - copy the `Session Pooler` string
 - keep `DATABASE_URL` pointed at `*.pooler.supabase.com`
 - this avoids the IPv4 limitation of the direct database hostname in many local networks and desktop environments

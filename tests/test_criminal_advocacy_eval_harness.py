@@ -8,6 +8,7 @@ from src.evaluation.criminal_advocacy_dataset import (
     build_case_pdf_bytes,
     build_runtime_message,
     iter_cases,
+    score_keyword_coverage,
 )
 
 
@@ -38,3 +39,18 @@ def test_criminal_advocacy_eval_harness_generates_extractable_pdf() -> None:
 
     assert case.title in text
     assert case.raw_case_text.split(".")[0] in text
+
+
+def test_criminal_advocacy_keyword_scoring_detects_overlap() -> None:
+    score = score_keyword_coverage(
+        "A defesa destaca nulidade do reconhecimento, ausência de corroboração e lacunas probatórias.",
+        [
+            "nulidade do reconhecimento",
+            "ausencia de corroboração externa",
+            "lacunas probatorias relevantes",
+        ],
+    )
+
+    assert score["score"] > 0
+    assert "reconhecimento" in score["matched"]
+    assert isinstance(score["missing"], list)

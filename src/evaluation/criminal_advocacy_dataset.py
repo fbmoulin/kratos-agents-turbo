@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -31,6 +32,37 @@ class CriminalAdvocacyCase:
     canonical_advocacy_pipeline: dict[str, Any]
     runtime_task_type: str
     path: Path
+    expected_runtime_classification: str = "Penal"
+
+
+STOPWORDS = {
+    "a",
+    "ao",
+    "aos",
+    "as",
+    "com",
+    "da",
+    "das",
+    "de",
+    "do",
+    "dos",
+    "e",
+    "em",
+    "na",
+    "nas",
+    "no",
+    "nos",
+    "o",
+    "os",
+    "ou",
+    "para",
+    "por",
+    "que",
+    "se",
+    "sem",
+    "uma",
+    "um",
+}
 
 
 def load_manifest() -> dict[str, Any]:
@@ -141,3 +173,27 @@ def build_simple_pdf_bytes(text: str) -> bytes:
 
 def build_case_pdf_bytes(case: CriminalAdvocacyCase) -> bytes:
     return build_simple_pdf_bytes(build_case_document_text(case))
+
+
+def extract_keywords(text: str) -> set[str]:
+    words = re.findall(r"[A-Za-zÀ-ÿ0-9_-]+", text.lower())
+    return {word for word in words if len(word) >= 4 and word not in STOPWORDS}
+
+
+def score_keyword_coverage(output_text: str, reference_texts: list[str]) -> dict[str, object]:
+    output_keywords = extract_keywords(output_text)
+    reference_keywords = set()
+    for text in reference_texts:
+        reference_keywords.update(extract_keywords(text))
+
+    if not reference_keywords:
+        return {"score": 1.0, "matched": [], "missing": []}
+
+    matched = sorted(reference_keywords & output_keywords)
+    missing = sorted(reference_keywords - output_keywords)
+    score = round(len(matched) / len(reference_keywords), 3)
+    return {
+        "score": score,
+        "matched": matched,
+        "missing": missing,
+    }
