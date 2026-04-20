@@ -1,0 +1,43 @@
+{
+  "case_id": "af_001_roubo_reconhecimento_irregular",
+  "title": "Alegacoes finais em roubo com reconhecimento irregular e prova oral contraditoria",
+  "anonymized": true,
+  "target_piece_type": "alegacoes_finais",
+  "raw_case_text": "Encerrada a instrucao, o Ministerio Publico requereu a condenacao de V.M.O. por roubo majorado. Em juizo, a vitima declarou que foi abordada por dois homens em motocicleta durante a noite, sob intensa tensao, e que o reconhecimento realizado na delegacia ocorreu por exibicao de fotografia unica no celular de um policial. Na audiencia, afirmou nao ter seguranca para apontar o reu em plenitude, dizendo apenas que ele 'se parece' com um dos autores. Os policiais militares narraram que chegaram ao nome do acusado por informacao de terceiro nao identificado. Nenhum bem da vitima foi apreendido. A motocicleta mencionada nunca foi vinculada ao acusado por laudo ou filmagem. A defesa produziu testemunha que confirmou que o acusado estava em confraternizacao familiar na noite do fato, embora sem registro fotografico. O Ministerio Publico insiste na condenacao com base na firmeza dos relatos policiais e no reconhecimento extrajudicial.",
+  "raw_case_context": "Fase de memoriais escritos apos encerramento da prova oral. Nao houve novas diligencias deferidas.",
+  "expected_strategic_direction": "Nas alegacoes finais, priorizar pedido de absolvição por insuficiencia probatoria, enfatizando a contaminação do reconhecimento extrajudicial, a ausência de confirmação judicial segura, a falta de apreensão de bens e a inexistência de corroboração independente dos relatos policiais.",
+  "notes": {
+    "risks": [
+      "O juizo pode atribuir alta credibilidade aos policiais como testemunhas presenciais da investigacao.",
+      "A existencia de testemunha de alibi sem documento de apoio pode ser relativizada."
+    ],
+    "proof_gaps": [
+      "Nao houve reconhecimento judicial positivo e seguro.",
+      "Nao ha recuperacao da res furtiva nem prova material vinculando o reu ao veiculo.",
+      "A origem da informacao que levou ao nome do acusado e desconhecida."
+    ],
+    "tactical_priorities": [
+      "Organizar as contradicoes entre reconhecimento policial e relato da vitima em juizo.",
+      "Tratar o reconhecimento extrajudicial como prova contaminada e nao autonomamente suficiente.",
+      "Explorar a ausencia de corroboração material externa.",
+      "Formular pedido subsidiario apenas se houver risco concreto de parcial procedencia, sem enfraquecer a tese absolutoria principal."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "memoriais_defensivos_pos_instrucao",
+      "expected_piece_type": "alegacoes_finais"
+    },
+    "firac": {
+      "core_defense_goal": "Converter fragilidade de autoria em pedido absolutorio robusto.",
+      "strategic_frame": "Reconhecimento irregular sem confirmação judicial segura e sem prova material de apoio."
+    },
+    "validator": {
+      "must_check": [
+        "Se a peca resume corretamente o que foi produzido em audiencia.",
+        "Se a tese absolutoria esta ancorada em pontos objetivos da instrucao.",
+        "Se eventuais pedidos subsidiarios nao diluem a narrativa principal."
+      ]
+    }
+  }
+}

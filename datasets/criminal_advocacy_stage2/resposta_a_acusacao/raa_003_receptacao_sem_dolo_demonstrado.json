@@ -1,0 +1,42 @@
+{
+  "case_id": "raa_003_receptacao_sem_dolo_demonstrado",
+  "title": "Receptacao de motocicleta com sinais de adulteracao sem indicios solidos de dolo",
+  "anonymized": true,
+  "target_piece_type": "resposta_a_acusacao",
+  "raw_case_text": "A denuncia narra que J.L.F. foi abordado conduzindo motocicleta com placa artesanal e numero de chassi parcialmente suprimido. O acusado apresentou recibo simples de compra firmado por pessoa identificada apenas como 'Carlos', no valor de R$ 4.800,00, e afirmou ter adquirido o veiculo por meio de anuncio em rede social cerca de tres meses antes da abordagem. O laudo pericial constatou adulteracao de sinal identificador, mas nao identificou o momento da remarcacao. Nao ha prova de que o acusado participou da adulteracao. O Ministerio Publico denunciou por receptacao dolosa e adulteracao de sinal identificador, embora o inquerito nao tenha esclarecido quem realizou a supressao. O investigado nao possui antecedentes e a proprietaria originaria nao o reconheceu como autor do furto do bem.",
+  "expected_strategic_direction": "Questionar a existencia de dolo na aquisicao e posse da motocicleta, buscar desclassificacao para receptacao culposa ou absolvição sumaria quanto ao art. 311, com foco na ausencia de prova de consciencia sobre a origem ilicita e de autoria da adulteracao.",
+  "notes": {
+    "risks": [
+      "Preco abaixo da tabela pode ser interpretado como indicio de ciencia da origem ilicita.",
+      "A placa artesanal e o chassi parcial podem sensibilizar negativamente o juizo."
+    ],
+    "proof_gaps": [
+      "Nao ha prova de que o acusado tenha adulterado os sinais identificadores.",
+      "O vendedor nao foi identificado nem localizado.",
+      "Nao houve prova de que o acusado conhecia a restricao do veiculo quando o adquiriu."
+    ],
+    "tactical_priorities": [
+      "Dissociar claramente a posse do veiculo da autoria da adulteracao.",
+      "Explorar a insuficiencia de elementos subjetivos para receptacao dolosa.",
+      "Requerer diligencias para rastrear o anunciante e os dados da negociacao.",
+      "Preservar tese subsidiaria de receptacao culposa com pena mais branda."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "defesa_preliminar_em_acao_penal_por_crimes_patrimoniais",
+      "expected_piece_type": "resposta_a_acusacao"
+    },
+    "firac": {
+      "core_defense_goal": "Enfraquecer o elemento subjetivo e limitar o alcance da imputacao.",
+      "strategic_frame": "Ausencia de demonstracao concreta de dolo e de autoria da adulteracao."
+    },
+    "validator": {
+      "must_check": [
+        "Se a tese de desclassificacao esta bem separada da tese absolutoria.",
+        "Se ha coerencia entre os fatos admitidos e os pedidos subsidiarios.",
+        "Se a defesa nao afirma como certo aquilo que depende de prova futura."
+      ]
+    }
+  }
+}

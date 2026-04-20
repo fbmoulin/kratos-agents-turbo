@@ -1,0 +1,43 @@
+{
+  "case_id": "rpp_002_trafico_mae_responsavel_pequena_quantidade",
+  "title": "Revogacao de preventiva com pedido de domiciliar para mae responsavel por criancas pequenas",
+  "anonymized": true,
+  "target_piece_type": "revogacao_prisao_preventiva",
+  "raw_case_text": "L.F.S. foi presa em flagrante por trafico apos apreensao de 21 gramas de crack fracionados em porcoes e tres aparelhos celulares em sua residencia. A decisao que converteu a prisao em preventiva destacou a gravidade do trafico e a necessidade de interromper atividade criminosa, sem detalhar elementos de integracao a organizacao ou atos de violencia. A acusada e mae solo de duas criancas de 4 e 7 anos, ambas sob cuidados precarios da avo materna, que juntou declaracao escolar e comprovantes medicos nos autos. Nao ha armas, nao ha veiculos, nao ha anotacao de condenacao definitiva anterior. A investigacao nao identificou compradores, movimentacao financeira ou mensagens que revelem estrutura de venda. A defesa requereu liberdade provisoria na audiencia de custodia, mas o pedido foi indeferido em decisao padrao.",
+  "raw_case_context": "Ja ha documentos minimos de maternidade e guarda de fato. O Ministerio Publico se manifestou genericamente contra a soltura.",
+  "expected_strategic_direction": "Priorizar revogacao da preventiva com substituicao por prisao domiciliar e medidas cautelares, destacando maternidade, cuidado indispensavel de menores de 12 anos, quantidade nao expressiva de droga, ausencia de violencia e falta de elementos concretos de risco atual.",
+  "notes": {
+    "risks": [
+      "O juizo pode entender que a natureza da droga e a fracao de porcoes indicam traficancia habitual.",
+      "Pode haver resistencia a domiciliar se a magistratura exigir prova documental mais robusta da indispensabilidade."
+    ],
+    "proof_gaps": [
+      "Nao ha evidencia de organizacao criminosa, arma ou receita ilicita estruturada.",
+      "Nao ha prova de que outra pessoa possa assumir integralmente os cuidados das criancas sem prejuizo.",
+      "A decisao de custodia nao individualiza o perigo gerado pela acusada."
+    ],
+    "tactical_priorities": [
+      "Ancorar o pedido no cuidado de menores e em medidas cautelares cumulativas.",
+      "Reforcar a documentalizacao da rotina das criancas e da ausencia de rede de apoio suficiente.",
+      "Diferenciar risco abstrato do tipo penal de risco processual concreto.",
+      "Manter tese subsidiaria de monitoramento eletronico e recolhimento domiciliar noturno."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "pedido_autonomo_de_revogacao_ou_substituicao_da_preventiva",
+      "expected_piece_type": "revogacao_prisao_preventiva"
+    },
+    "firac": {
+      "core_defense_goal": "Converter a segregacao em medida menos gravosa, preferencialmente domiciliar.",
+      "strategic_frame": "Maternidade, ausencia de violencia e fundamentacao cautelar nao individualizada."
+    },
+    "validator": {
+      "must_check": [
+        "Se o pedido principal e subsidiario estao em ordem logica.",
+        "Se a argumentacao sobre cuidado de menores esta conectada aos documentos ja mencionados.",
+        "Se o texto evita negar automaticamente a traficancia sem suporte processual suficiente."
+      ]
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "case_id": "hc_001_conversao_custodia_sem_fundamentacao_concreta",
+  "title": "Habeas corpus com pedido liminar contra conversao de flagrante em preventiva sem fundamentacao individualizada",
+  "anonymized": true,
+  "target_piece_type": "habeas_corpus",
+  "raw_case_text": "T.P.A. foi preso em flagrante por suposto trafico apos apreensao de 14 gramas de cocaina, R$ 96,00 e um celular. Na audiencia de custodia, a defesa sustentou que o paciente e primario, trabalha em oficina mecanica e reside com a mae idosa. O juizo converteu a prisao em preventiva em decisao de duas paginas que afirma apenas a gravidade do delito, a necessidade de garantia da ordem publica e a inadequacao abstrata de medidas cautelares. Nao descreve tentativa de fuga, ameaca a testemunha, apreensao de arma ou vinculacao do paciente a grupo criminoso. A defesa local ja apresentou pedido de reconsideracao, sem apreciacao ate o momento. O paciente segue preso ha 19 dias, sem noticia de oferecimento da denuncia.",
+  "raw_case_context": "Objetivo de impetracao com pedido liminar. Documentos disponiveis: auto de prisao em flagrante, ata da audiencia de custodia, decisao de conversao e comprovante de residencia.",
+  "expected_strategic_direction": "Impetrar habeas corpus com pedido liminar para revogar a preventiva ou substitui-la por cautelares diversas, focando na falta de fundamentacao concreta, na pequena quantidade apreendida e na ausencia de indicios de periculosidade processual atual.",
+  "notes": {
+    "risks": [
+      "Tribunais costumam ser mais rigorosos em materia de trafico, mesmo com pequena quantidade.",
+      "A liminar pode ser indeferida sob argumento de supressao de instancia se a tese nao estiver bem calibrada."
+    ],
+    "proof_gaps": [
+      "A decisao nao individualiza risco concreto nem explica por que cautelares seriam insuficientes.",
+      "Nao ha elementos de violencia, organizacao ou reiteração delitiva recente.",
+      "Ainda nao houve oferecimento de denuncia, o que reforca o foco cautelar."
+    ],
+    "tactical_priorities": [
+      "Construir pedido liminar objetivo, centrado na ilegalidade da motivacao.",
+      "Evitar aprofundar discussao de merito sobre trafico versus uso no corpo principal do writ.",
+      "Destacar a pequena apreensao e os vinculos pessoais apenas como reforco da desnecessidade da prisao.",
+      "Anexar integralmente os documentos indispensaveis para cognicao sumaria."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "impetracao_urgente_contra_decisao_cautelar",
+      "expected_piece_type": "habeas_corpus"
+    },
+    "firac": {
+      "core_defense_goal": "Obter liminar para cessar constrangimento ilegal por fundamentacao inidonea.",
+      "strategic_frame": "Prisão mantida por formula abstrata e sem base individualizada."
+    },
+    "validator": {
+      "must_check": [
+        "Se o writ indica autoridade coatora e ato coator de forma precisa.",
+        "Se o pedido liminar esta objetivamente formulado.",
+        "Se o texto evita teses de merito desnecessarias que enfraquecam a urgencia."
+      ]
+    }
+  }
+}

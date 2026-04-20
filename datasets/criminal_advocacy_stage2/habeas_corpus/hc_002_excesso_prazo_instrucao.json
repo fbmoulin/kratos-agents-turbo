@@ -1,0 +1,43 @@
+{
+  "case_id": "hc_002_excesso_prazo_instrucao",
+  "title": "Habeas corpus por excesso de prazo em instrucao de tentativa de homicidio",
+  "anonymized": true,
+  "target_piece_type": "habeas_corpus",
+  "raw_case_text": "G.F.L. encontra-se preso preventivamente ha 1 ano e 4 meses por tentativa de homicidio qualificado. A acao penal teve tres audiencias redesignadas: a primeira por ausencia de escolta, a segunda por falta de intimacao de testemunha arrolada pela acusacao e a terceira por problema tecnico em videoconferencia do presidio. A defesa nao requereu diligencias protelatorias e, em todas as oportunidades, manifestou concordancia com a colheita imediata dos depoimentos disponiveis. Somente duas de seis testemunhas de acusacao foram ouvidas. O paciente e primario, possui residencia fixa e nega a autoria. A ultima decisao de manutencao da custodia referiu-se genericamente a complexidade do feito, embora o processo tenha um unico reu e fato delimitado em episodio unico.",
+  "raw_case_context": "Ha interesse em pedido liminar, mas com formulacao subsidiaria para que o tribunal determine prazo certo para encerramento da instrucao se nao conceder soltura imediata.",
+  "expected_strategic_direction": "Impetrar habeas corpus por excesso de prazo nao imputavel a defesa, com pedido principal de soltura e pedido subsidiario de substituicao por cautelares ou fixacao de prazo para encerramento da instrucao, destacando a simplicidade relativa do feito e a mora estatal reiterada.",
+  "notes": {
+    "risks": [
+      "A imputacao de crime grave contra a vida pode gerar maior deferencia do tribunal a manutencao da custodia.",
+      "O tribunal pode considerar que redesignacoes isoladas sao justificaveis se a cronologia nao estiver bem organizada."
+    ],
+    "proof_gaps": [
+      "Nao ha comportamento protelatorio da defesa documentado nos autos.",
+      "O processo nao revela pluralidade de reus ou diligencias complexas que justifiquem a demora.",
+      "As causas de adiamento registradas sao estruturais ou imputaveis ao aparato estatal."
+    ],
+    "tactical_priorities": [
+      "Apresentar linha do tempo detalhada das audiencias frustradas.",
+      "Demonstrar de forma sintese que a defesa nao contribuiu para a mora.",
+      "Formular pedido subsidiario pragmatico para aumentar chance de acolhimento parcial.",
+      "Conectar o excesso de prazo ao esvaziamento da excepcionalidade da preventiva."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "controle_urgente_de_constrangimento_ilegal_por_mora_processual",
+      "expected_piece_type": "habeas_corpus"
+    },
+    "firac": {
+      "core_defense_goal": "Transformar a cronologia processual em argumento central de ilegalidade.",
+      "strategic_frame": "Mora estatal reiterada em feito sem complexidade extraordinaria."
+    },
+    "validator": {
+      "must_check": [
+        "Se a linha do tempo esta cronologicamente fechada.",
+        "Se o texto separa pedido principal e subsidiario sem contradicao.",
+        "Se a narrativa evidencia a falta de contribuicao defensiva para a demora."
+      ]
+    }
+  }
+}

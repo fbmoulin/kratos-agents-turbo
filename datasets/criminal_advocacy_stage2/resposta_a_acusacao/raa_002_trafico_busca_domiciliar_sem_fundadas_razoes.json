@@ -1,0 +1,44 @@
+{
+  "case_id": "raa_002_trafico_busca_domiciliar_sem_fundadas_razoes",
+  "title": "Trafico com ingresso domiciliar baseado em denuncia anonima e consentimento nao documentado",
+  "anonymized": true,
+  "target_piece_type": "resposta_a_acusacao",
+  "raw_case_text": "Segundo a denuncia, M.C.P. mantinha drogas para venda em sua residencia, localizada na Rua Beta, na Comarca Gama. Policiais militares relataram que receberam denuncia anonima de que havia comercio de entorpecentes no local e, ao chegarem, visualizaram o acusado proximo ao portao. Alegam que ele autorizou a entrada verbalmente. Nao foi lavrado termo de consentimento. No interior da casa foram apreendidos 18 invólucros de cocaina, totalizando 62 gramas, uma balanca de precisao e R$ 410,00 em cedulas trocadas. O acusado afirmou, na audiencia de custodia, que os agentes empurraram o portao e ingressaram sem autorizacao, e que o dinheiro era proveniente de servicos de motoboy. Nenhum comprador foi identificado. O aparelho celular apreendido ainda nao teve extracao pericial juntada aos autos.",
+  "raw_case_context": "Denuncia por trafico e associacao nao foi oferecida; somente art. 33. O acusado e primario. A audiencia de custodia registrou alegacao expressa de invasao domiciliar.",
+  "expected_strategic_direction": "Sustentar ilicitude da prova por ausencia de fundadas razoes e de consentimento valido para o ingresso domiciliar, pedir rejeicao do material apreendido e, subsidiariamente, desclassificacao da narrativa para uso proprio ou enfraquecimento do dolo de trafico.",
+  "notes": {
+    "risks": [
+      "A quantidade e a balanca podem ser lidas como indicios suficientes de traficancia.",
+      "O juizo pode postergar o exame da ilicitude da busca para a instrucao."
+    ],
+    "proof_gaps": [
+      "Nao existe termo de consentimento assinado ou gravacao da autorizacao.",
+      "Nao ha elemento externo que demonstre fundada razao anterior ao ingresso.",
+      "Nao ha laudo de extracao do celular nem registro de monitoramento previo.",
+      "Nao ha testemunha civil do ingresso no imovel."
+    ],
+    "tactical_priorities": [
+      "Amarrar a narrativa da audiencia de custodia como indicio contemporaneo de ilegalidade.",
+      "Requerer oitiva dos policiais com foco na origem concreta da suspeita.",
+      "Pedir acesso integral ao BO, CAD e comunicacoes de radio da ocorrencia.",
+      "Preservar tese subsidiaria de desclassificacao caso a nulidade nao seja acolhida de plano."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "resposta_a_acusacao_apos_denuncia_por_trafico",
+      "expected_piece_type": "resposta_a_acusacao"
+    },
+    "firac": {
+      "core_defense_goal": "Excluir a prova central e quebrar a narrativa de traficancia.",
+      "strategic_frame": "Busca domiciliar sem base concreta e sem cadeia argumentativa minima."
+    },
+    "validator": {
+      "must_check": [
+        "Se a defesa separa claramente tese principal de nulidade e tese subsidiaria de merito.",
+        "Se os pedidos probatorios sao especificos e exequiveis.",
+        "Se o texto evita afirmar uso proprio como fato consumado sem suporte minimo."
+      ]
+    }
+  }
+}

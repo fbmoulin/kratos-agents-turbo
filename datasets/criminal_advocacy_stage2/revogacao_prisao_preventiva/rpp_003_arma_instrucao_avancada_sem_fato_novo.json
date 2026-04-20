@@ -1,0 +1,42 @@
+{
+  "case_id": "rpp_003_arma_instrucao_avancada_sem_fato_novo",
+  "title": "Revogacao de preventiva por instrucao avancada e ausencia de fato novo em processo por arma",
+  "anonymized": true,
+  "target_piece_type": "revogacao_prisao_preventiva",
+  "raw_case_text": "E.C.R. responde por posse irregular de arma de fogo de uso permitido e ameaca. A preventiva foi decretada na fase inicial do processo sob fundamento de que o acusado poderia constranger a ex-companheira e a testemunha vizinha. Quatro meses depois, ambas ja foram ouvidas em juizo, com contraditorio, e nenhuma noticia concreta de novo contato indevido foi juntada. O reu e primario, tem residencia fixa, compareceu a todos os atos anteriores e exerceu atividade remunerada antes da prisao. A decisao de manutencao da custodia limitou-se a reproduzir os fundamentos originais sem demonstrar porque medidas como proibicao de contato e monitoração nao seriam suficientes neste momento processual.",
+  "expected_strategic_direction": "Sustentar a perda de contemporaneidade dos fundamentos cautelares, enfatizar que a instrucao principal ja ocorreu e requerer substituicao da preventiva por proibicao de contato, afastamento e monitoração, em lugar da prisao.",
+  "notes": {
+    "risks": [
+      "O historico relacional com a suposta vitima pode levar o juizo a manter viés protetivo maximo.",
+      "A cumulação de imputacoes pode ser usada para justificar permanencia da cautela extrema."
+    ],
+    "proof_gaps": [
+      "Nao ha registro posterior de descumprimento de ordem judicial ou contato indevido.",
+      "A decisao recente nao apresenta fato novo nem revisao concreta do contexto instrutorio.",
+      "As testemunhas mais sensiveis ja foram colhidas sob crivo judicial."
+    ],
+    "tactical_priorities": [
+      "Atualizar a cronologia para mostrar esvaziamento do risco processual.",
+      "Oferecer pacote detalhado de cautelares substitutivas.",
+      "Evitar discutir merito da imputacao para nao dispersar o foco cautelar.",
+      "Anexar comprovantes de residencia e proposta laboral para reforco de vinculo."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "revisao_de_preventiva_com_instrucao_parcialmente_concluida",
+      "expected_piece_type": "revogacao_prisao_preventiva"
+    },
+    "firac": {
+      "core_defense_goal": "Mostrar que o fundamento original perdeu atualidade.",
+      "strategic_frame": "Risco inicialmente alegado ja neutralizado por atos processuais concluidos."
+    },
+    "validator": {
+      "must_check": [
+        "Se a cronologia processual esta clara e verificavel.",
+        "Se as cautelares propostas respondem exatamente ao risco originalmente invocado.",
+        "Se o pedido nao depende de rediscussao ampla do merito."
+      ]
+    }
+  }
+}

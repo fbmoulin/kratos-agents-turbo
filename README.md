@@ -78,6 +78,7 @@ Core design principles:
 | `src/mcp/` | MCP-like skill server |
 | `src/skills/` | reusable legal processing skills |
 | `infra/sql/` | SQL bootstrap artifacts |
+| `datasets/` | anonymized evaluation corpora for legal drafting and pipeline validation |
 | `tests/` | API/service/registry/state-machine tests |
 
 ## 5. Execution Flow

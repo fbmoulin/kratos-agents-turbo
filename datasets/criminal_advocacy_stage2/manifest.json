@@ -1,0 +1,69 @@
+{
+  "dataset_id": "criminal-advocacy-stage2-v1",
+  "domain": "criminal_advocacy",
+  "description": "Primeiro dataset realista e anonimizado para validacao pratica do pipeline canonico de advocacia criminal.",
+  "canonical_advocacy_pipeline": {
+    "detector": "Identifica fase processual, tipo de peca e contexto de urgencia a partir do caso bruto.",
+    "firac": "Estrutura os fatos e a direcao estrategica defensiva esperada.",
+    "validator": "Confere riscos, lacunas probatorias e prioridades taticas antes da saida final."
+  },
+  "piece_types": [
+    "resposta_a_acusacao",
+    "revogacao_prisao_preventiva",
+    "habeas_corpus",
+    "alegacoes_finais"
+  ],
+  "case_count": 10,
+  "cases": [
+    {
+      "case_id": "raa_001_furto_reconhecimento_fotografico",
+      "target_piece_type": "resposta_a_acusacao",
+      "path": "resposta_a_acusacao/raa_001_furto_reconhecimento_fotografico.json"
+    },
+    {
+      "case_id": "raa_002_trafico_busca_domiciliar_sem_fundadas_razoes",
+      "target_piece_type": "resposta_a_acusacao",
+      "path": "resposta_a_acusacao/raa_002_trafico_busca_domiciliar_sem_fundadas_razoes.json"
+    },
+    {
+      "case_id": "raa_003_receptacao_sem_dolo_demonstrado",
+      "target_piece_type": "resposta_a_acusacao",
+      "path": "resposta_a_acusacao/raa_003_receptacao_sem_dolo_demonstrado.json"
+    },
+    {
+      "case_id": "rpp_001_roubo_fundamentacao_generica",
+      "target_piece_type": "revogacao_prisao_preventiva",
+      "path": "revogacao_prisao_preventiva/rpp_001_roubo_fundamentacao_generica.json"
+    },
+    {
+      "case_id": "rpp_002_trafico_mae_responsavel_pequena_quantidade",
+      "target_piece_type": "revogacao_prisao_preventiva",
+      "path": "revogacao_prisao_preventiva/rpp_002_trafico_mae_responsavel_pequena_quantidade.json"
+    },
+    {
+      "case_id": "rpp_003_arma_instrucao_avancada_sem_fato_novo",
+      "target_piece_type": "revogacao_prisao_preventiva",
+      "path": "revogacao_prisao_preventiva/rpp_003_arma_instrucao_avancada_sem_fato_novo.json"
+    },
+    {
+      "case_id": "hc_001_conversao_custodia_sem_fundamentacao_concreta",
+      "target_piece_type": "habeas_corpus",
+      "path": "habeas_corpus/hc_001_conversao_custodia_sem_fundamentacao_concreta.json"
+    },
+    {
+      "case_id": "hc_002_excesso_prazo_instrucao",
+      "target_piece_type": "habeas_corpus",
+      "path": "habeas_corpus/hc_002_excesso_prazo_instrucao.json"
+    },
+    {
+      "case_id": "af_001_roubo_reconhecimento_irregular",
+      "target_piece_type": "alegacoes_finais",
+      "path": "alegacoes_finais/af_001_roubo_reconhecimento_irregular.json"
+    },
+    {
+      "case_id": "af_002_trafico_associacao_cadeia_custodia_fragil",
+      "target_piece_type": "alegacoes_finais",
+      "path": "alegacoes_finais/af_002_trafico_associacao_cadeia_custodia_fragil.json"
+    }
+  ]
+}

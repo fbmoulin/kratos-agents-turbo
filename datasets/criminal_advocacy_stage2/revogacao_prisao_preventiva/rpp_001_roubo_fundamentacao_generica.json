@@ -1,0 +1,43 @@
+{
+  "case_id": "rpp_001_roubo_fundamentacao_generica",
+  "title": "Revogacao de preventiva em roubo com fundamentacao generica e sem contemporaneidade concreta",
+  "anonymized": true,
+  "target_piece_type": "revogacao_prisao_preventiva",
+  "raw_case_text": "A prisao preventiva de D.A.M. foi decretada apos audiencia de custodia em processo por roubo majorado supostamente praticado com outro agente. A decisao apontou genericamente a gravidade abstrata do delito, o clamor social e a necessidade de garantia da ordem publica. O acusado e primario, possui comprovante de residencia, contrato de trabalho como auxiliar de deposito e nao registra descumprimento anterior de medidas cautelares. O fato imputado ocorreu sem emprego de arma apreendida e sem recuperacao do aparelho celular supostamente subtraido. Passados cinco meses da prisao, a instrucao ainda nao se iniciou porque a vitima mudou de endereco e nao foi localizada para a primeira audiencia. Nao ha noticia de ameaca a testemunhas nem de reiteração delitiva no periodo anterior ao processo.",
+  "raw_case_context": "Ha decisao de conversao do flagrante em preventiva e certidoes de trabalho e residencia ja juntadas pela familia. O reu permaneceu segregado desde o flagrante.",
+  "expected_strategic_direction": "Pedir revogacao da prisao preventiva com substituicao por medidas cautelares diversas, explorando a ausencia de fundamentacao concreta, a falta de contemporaneidade do perigo, as condicoes pessoais favoraveis e o atraso processual nao atribuivel a defesa.",
+  "notes": {
+    "risks": [
+      "Roubo majorado costuma gerar resistencia judicial a medidas alternativas.",
+      "A existencia de coautoria pode ser usada para reforcar argumento abstrato de periculosidade."
+    ],
+    "proof_gaps": [
+      "A decisao nao aponta ato concreto de intimidacao, fuga ou reiteração.",
+      "Nao ha fato novo posterior ao flagrante que justifique manutencao da custodia.",
+      "A demora da instrucao decorre de dificuldade estatal de localizar a vitima."
+    ],
+    "tactical_priorities": [
+      "Comparar a motivacao da preventiva com o padrao exigido pelos tribunais superiores.",
+      "Juntar novamente documentos de residencia e trabalho em bloco probatorio organizado.",
+      "Oferecer medidas cautelares especificas, e nao pedido generico de liberdade.",
+      "Destacar que o atraso da audiencia nao foi provocado pela defesa."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "reavaliacao_de_custodia_antes_da_instrucao",
+      "expected_piece_type": "revogacao_prisao_preventiva"
+    },
+    "firac": {
+      "core_defense_goal": "Desconstituir a base cautelar e migrar para regime de cautelares diversas.",
+      "strategic_frame": "Fundamentacao generica, ausencia de perigo atual e excesso de tempo preso sem instrucao."
+    },
+    "validator": {
+      "must_check": [
+        "Se o pedido oferece cautelares adequadas ao caso concreto.",
+        "Se o texto nao confunde revogacao com habeas corpus.",
+        "Se a narrativa processual deixa claro que a demora nao e atribuida a defesa."
+      ]
+    }
+  }
+}

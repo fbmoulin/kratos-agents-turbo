@@ -1,0 +1,44 @@
+{
+  "case_id": "raa_001_furto_reconhecimento_fotografico",
+  "title": "Furto simples com reconhecimento fotografico informal e sem recuperacao da res furtiva",
+  "anonymized": true,
+  "target_piece_type": "resposta_a_acusacao",
+  "raw_case_text": "O Ministerio Publico ofereceu denuncia em face de R.N.S., imputando-lhe a pratica de furto simples, porque, em 18 de fevereiro de 2026, por volta das 19h40, teria subtraido dois aparelhos celulares e um carregador de uma farmacia de bairro na Comarca Alfa. Consta do inquerito que um funcionario percebeu a falta dos objetos no fechamento do caixa, revisou imagens internas que nao foram juntadas aos autos e, no dia seguinte, mostrou a outros empregados uma fotografia retirada de rede social, afirmando que o denunciado seria o autor. Nenhum bem foi recuperado. O auto de exibicao e apreensao inexiste. A autoridade policial ouviu dois funcionarios e um policial militar que apenas registrou a ocorrencia. O denunciado foi citado e informou que, no horario indicado, estava trabalhando em um lava-rato proximo, sem que o empregador tenha sido ouvido na fase inquisitorial.",
+  "raw_case_context": "Denuncia recebida. Citacao pessoal cumprida. Reu primario, com endereco fixo e vinculo informal de trabalho ja indicado na delegacia.",
+  "expected_strategic_direction": "Atacar a justa causa minima da denuncia, destacar a fragilidade do reconhecimento fotografico informal, requerer absolvição sumaria por ausencia de indicios idoneos ou, subsidiariamente, a abertura de instrucao com oitiva do empregador e requisicao das imagens originais.",
+  "notes": {
+    "risks": [
+      "Os funcionarios podem reiterar em juizo que reconheceram o acusado com seguranca.",
+      "O juizo pode entender que a resposta a acusacao nao comporta aprofundamento probatorio sobre autoria."
+    ],
+    "proof_gaps": [
+      "Nao ha imagens de camera juntadas aos autos.",
+      "Nao houve reconhecimento formal nos moldes do art. 226 do CPP.",
+      "Nenhum objeto foi apreendido em poder do acusado.",
+      "A testemunha de alibi nao foi ouvida na fase policial."
+    ],
+    "tactical_priorities": [
+      "Pedir absolvição sumaria por manifesta insuficiencia de suporte probatorio.",
+      "Requerer preservacao e exibicao das gravacoes originais da farmacia.",
+      "Arrolar o empregador e eventual colega de turno para reforcar o alibi.",
+      "Reservar tese de nulidade do reconhecimento fotografico para memoriais e alegacoes finais."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "post_recebimento_da_denuncia_com_prazo_para_defesa_preliminar",
+      "expected_piece_type": "resposta_a_acusacao"
+    },
+    "firac": {
+      "core_defense_goal": "Enfraquecer a autoria e impedir que o processo avance apoiado apenas em reconhecimento informal.",
+      "strategic_frame": "Fragilidade do reconhecimento e ausencia de corroboração externa."
+    },
+    "validator": {
+      "must_check": [
+        "Se os pedidos sao compativeis com a fase do art. 396-A do CPP.",
+        "Se a tese de absolvição sumaria nao exagera o que os autos permitem.",
+        "Se a lista de provas requeridas dialoga com as lacunas apontadas."
+      ]
+    }
+  }
+}

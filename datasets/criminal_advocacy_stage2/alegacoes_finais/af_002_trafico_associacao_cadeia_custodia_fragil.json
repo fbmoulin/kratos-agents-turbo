@@ -1,0 +1,43 @@
+{
+  "case_id": "af_002_trafico_associacao_cadeia_custodia_fragil",
+  "title": "Alegacoes finais em trafico e associacao com cadeia de custodia fragil e ausencia de estabilidade associativa",
+  "anonymized": true,
+  "target_piece_type": "alegacoes_finais",
+  "raw_case_text": "O Ministerio Publico apresentou memoriais requerendo a condenacao de S.B.C. e L.R.T. por trafico e associacao para o trafico. Durante a busca em casa compartilhada por varias pessoas da mesma familia, a policia apreendeu porcoes de maconha e cocaina em um armario da area externa, sem individualizacao de quem detinha a chave do local. O auto de exibicao foi assinado apenas horas depois da apreensao, e o laudo definitivo registra divergencia de peso em relacao ao laudo preliminar, sem explicacao sobre fracionamento ou contraprova. Em juizo, os policiais afirmaram que ambos os acusados 'atuavam juntos', mas nao descreveram rotina estavel, divisao de tarefas ou comprador identificado. Uma testemunha de defesa afirmou que a area externa era usada por varios parentes. Nao houve extracao de celulares nem prova financeira de comercio comum.",
+  "expected_strategic_direction": "Nas alegacoes finais, buscar absolvição quanto ao crime de associacao e, quanto ao trafico, explorar a duvida derivada da posse compartilhada e da cadeia de custodia fragil; subsidiariamente, caso remanesça condenação por trafico, afastar causas de maior gravidade e preservar espaço para minorante.",
+  "notes": {
+    "risks": [
+      "A apreensao de drogas em porcoes fracionadas favorece a narrativa acusatoria de trafico.",
+      "O juizo pode tratar convivio e parentesco como indicio suficiente de associacao se a defesa nao delimitar bem o conceito legal."
+    ],
+    "proof_gaps": [
+      "Nao ha prova de estabilidade, permanencia e divisao de tarefas para associacao.",
+      "A cadeia de custodia apresenta inconsistencias entre auto de apreensao e laudos.",
+      "A area de guarda era compartilhada e nao houve individualizacao segura da posse.",
+      "Nao ha prova digital ou financeira de atuacao conjunta."
+    ],
+    "tactical_priorities": [
+      "Separar claramente a tese de absolvição da associacao da tese relativa ao trafico.",
+      "Explorar tecnicamente as inconsistencias de peso e guarda do material apreendido.",
+      "Usar a posse compartilhada para ampliar a duvida sobre dominio e disponibilidade da droga.",
+      "Preparar tese subsidiaria de redimensionamento da resposta penal sem admitir associacao."
+    ]
+  },
+  "canonical_advocacy_pipeline": {
+    "detector": {
+      "expected_phase": "alegacoes_finais_apos_instrucao_em_crime_de_drogas",
+      "expected_piece_type": "alegacoes_finais"
+    },
+    "firac": {
+      "core_defense_goal": "Reduzir o alcance condenatorio e romper a narrativa de associacao estavel.",
+      "strategic_frame": "Prova de posse e associacao nao supera as inconsistencias materiais e a compartilhacao do espaco."
+    },
+    "validator": {
+      "must_check": [
+        "Se a peca trata separadamente trafico e associacao.",
+        "Se as inconsistencias de cadeia de custodia foram descritas de modo tecnico e compreensivel.",
+        "Se a tese subsidiaria nao contradiz o pedido absolutorio principal."
+      ]
+    }
+  }
+}
