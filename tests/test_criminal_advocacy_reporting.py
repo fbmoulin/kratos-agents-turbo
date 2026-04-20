@@ -31,6 +31,14 @@ def test_criminal_advocacy_reporting_renders_summary_and_weakest_cases() -> None
                 },
             },
         },
+        "threshold_check": {
+            "passed": False,
+            "failure_count": 2,
+            "failures": [
+                "summary metric 'classification_match_rate' below threshold",
+                "piece type 'habeas_corpus' metric 'average_overall_score' below threshold",
+            ],
+        },
         "cases": [
             {
                 "case_id": "hc_001",
@@ -76,6 +84,7 @@ def test_criminal_advocacy_reporting_renders_summary_and_weakest_cases() -> None
     assert "# Criminal Advocacy Evaluation Report" in markdown
     assert "## Summary" in markdown
     assert "## Recommended Actions" in markdown
+    assert "## Threshold Gate" in markdown
     assert "## Weakest Cases" in markdown
     assert "`hc_001`" in markdown
     assert "Review document classification prompts" in markdown

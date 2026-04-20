@@ -1,0 +1,37 @@
+{
+  "dataset_id": "criminal-advocacy-stage2-v1",
+  "required_piece_types": [
+    "resposta_a_acusacao",
+    "revogacao_prisao_preventiva",
+    "habeas_corpus",
+    "alegacoes_finais"
+  ],
+  "summary_minimums": {
+    "completion_rate": 1.0,
+    "classification_match_rate": 1.0,
+    "piece_type_hint_rate": 1.0,
+    "average_overall_score": 0.75,
+    "average_strategy_coverage": 0.7,
+    "average_tactical_coverage": 0.7,
+    "average_proof_gap_coverage": 0.65,
+    "average_risk_coverage": 0.65
+  },
+  "per_piece_type_minimums": {
+    "resposta_a_acusacao": {
+      "completion_rate": 1.0,
+      "average_overall_score": 0.75
+    },
+    "revogacao_prisao_preventiva": {
+      "completion_rate": 1.0,
+      "average_overall_score": 0.75
+    },
+    "habeas_corpus": {
+      "completion_rate": 1.0,
+      "average_overall_score": 0.75
+    },
+    "alegacoes_finais": {
+      "completion_rate": 1.0,
+      "average_overall_score": 0.75
+    }
+  }
+}

@@ -51,6 +51,7 @@ def render_markdown_report(report: dict[str, Any]) -> str:
     summary = dict(report.get("summary") or {})
     cases = list(report.get("cases") or [])
     by_piece_type = dict(summary.get("by_piece_type") or {})
+    threshold_check = dict(report.get("threshold_check") or {})
     sorted_cases = sorted(
         cases,
         key=lambda item: float(item.get("scores", {}).get("overall_score") or 0.0),
@@ -94,6 +95,19 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"| Average risk coverage | `{_score(float(summary.get('average_risk_coverage') or 0.0))}` |"
     )
     lines.append("")
+
+    if threshold_check:
+        lines.append("## Threshold Gate")
+        lines.append("")
+        lines.append(
+            f"- Status: `{'passed' if threshold_check.get('passed') else 'failed'}`"
+        )
+        lines.append(f"- Failure count: `{threshold_check.get('failure_count', 0)}`")
+        if threshold_check.get("failures"):
+            lines.append("- Failures:")
+            for failure in threshold_check["failures"]:
+                lines.append(f"  - {failure}")
+        lines.append("")
 
     if by_piece_type:
         lines.append("## By Piece Type")

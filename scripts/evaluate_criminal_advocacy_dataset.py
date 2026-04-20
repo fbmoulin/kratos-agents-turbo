@@ -21,7 +21,15 @@ from src.evaluation.criminal_advocacy_dataset import (
     score_keyword_coverage,
 )
 from src.evaluation.criminal_advocacy_reporting import render_markdown_report
+from src.evaluation.criminal_advocacy_thresholds import (
+    evaluate_report_against_thresholds,
+    load_thresholds,
+)
 from src.worker.tasks import process_document_task
+
+DEFAULT_THRESHOLDS_PATH = (
+    ROOT / "datasets" / "criminal_advocacy_stage2" / "thresholds.json"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,6 +60,15 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help="Optional path to write a Markdown review report.",
+    )
+    parser.add_argument(
+        "--thresholds",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path to evaluate the JSON report against threshold gates. "
+            f"Recommended baseline: {DEFAULT_THRESHOLDS_PATH}"
+        ),
     )
     return parser.parse_args()
 
@@ -256,6 +273,9 @@ def main() -> int:
         "summary": aggregate_report(report_cases),
         "cases": report_cases,
     }
+    if args.thresholds:
+        thresholds = load_thresholds(args.thresholds)
+        report["threshold_check"] = evaluate_report_against_thresholds(report, thresholds)
 
     report_text = json.dumps(report, indent=2, ensure_ascii=False)
     if args.output:
@@ -264,6 +284,8 @@ def main() -> int:
         print(report_text)
     if args.markdown_output:
         args.markdown_output.write_text(render_markdown_report(report), encoding="utf-8")
+    if args.thresholds:
+        return 0 if report["threshold_check"]["passed"] else 1
     return 0
 
 

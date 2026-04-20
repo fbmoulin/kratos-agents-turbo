@@ -283,6 +283,12 @@ You can also render Markdown later from an existing JSON report:
 python scripts/render_criminal_advocacy_report.py runtime/criminal-advocacy-report.json --output runtime/criminal-advocacy-report.md
 ```
 
+To apply the dataset baseline gate against an existing JSON report:
+
+```bash
+python scripts/check_criminal_advocacy_thresholds.py runtime/criminal-advocacy-report.json --output runtime/criminal-advocacy-thresholds.json
+```
+
 Notes:
 
 - it requires `DATABASE_URL` or `SUPABASE_DB_URL`
@@ -297,6 +303,7 @@ Notes:
   - tactical priority coverage
   - proof-gap coverage
   - risk coverage
+- `datasets/criminal_advocacy_stage2/thresholds.json` is the current baseline gate for practical validation
 - copy the `Session Pooler` string
 - keep `DATABASE_URL` pointed at `*.pooler.supabase.com`
 - this avoids the IPv4 limitation of the direct database hostname in many local networks and desktop environments
